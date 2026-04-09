@@ -1,6 +1,5 @@
 import * as Slider from "@radix-ui/react-slider";
 import { SlidersHorizontal } from "lucide-react";
-import { CLASS_NAMES } from "../constants/classes";
 import type { FilterState } from "../types/prediction";
 import { ClassControl } from "./ClassControl";
 
@@ -11,6 +10,21 @@ interface Props {
   onClassVisibilityToggle: (classId: number) => void;
   processingTimeMs: number | null;
 }
+
+const NON_PATHOLOGIES = [
+  { id: 0, name: "Abrasion" },
+  { id: 1, name: "Filling" },
+  { id: 2, name: "Crown" },
+];
+
+const PATHOLOGIES = [
+  { id: 3, name: "Caries Class 1" },
+  { id: 4, name: "Caries Class 2" },
+  { id: 5, name: "Caries Class 3" },
+  { id: 6, name: "Caries Class 4" },
+  { id: 7, name: "Caries Class 5" },
+  { id: 8, name: "Caries Class 6" },
+];
 
 export function ControlSidebar({
   filters,
@@ -41,7 +55,7 @@ export function ControlSidebar({
           </span>
         </div>
         <Slider.Root
-          min={0}
+          min={0.01}
           max={1}
           step={0.01}
           value={[filters.globalThreshold]}
@@ -58,18 +72,41 @@ export function ControlSidebar({
       {/* 구분선 */}
       <div className="border-t border-border" />
 
-      {/* 클래스별 컨트롤 */}
+      {/* Non-Pathologies 그룹 */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground px-1">Per-Class</span>
-        {CLASS_NAMES.map((name, i) => (
+        <span className="text-xs font-semibold text-muted-foreground px-1 uppercase tracking-wide">
+          Non-Pathologies
+        </span>
+        {NON_PATHOLOGIES.map(({ id, name }) => (
           <ClassControl
-            key={i}
-            classId={i}
+            key={id}
+            classId={id}
             className={name}
-            threshold={filters.classThresholds[i]}
-            visible={filters.classVisibility[i]}
-            onThresholdChange={(v) => onClassThresholdChange(i, v)}
-            onVisibilityToggle={() => onClassVisibilityToggle(i)}
+            threshold={filters.classThresholds[id]}
+            visible={filters.classVisibility[id]}
+            onThresholdChange={(v) => onClassThresholdChange(id, v)}
+            onVisibilityToggle={() => onClassVisibilityToggle(id)}
+          />
+        ))}
+      </div>
+
+      {/* 구분선 */}
+      <div className="border-t border-border" />
+
+      {/* Pathologies 그룹 */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-semibold text-muted-foreground px-1 uppercase tracking-wide">
+          Pathologies
+        </span>
+        {PATHOLOGIES.map(({ id, name }) => (
+          <ClassControl
+            key={id}
+            classId={id}
+            className={name}
+            threshold={filters.classThresholds[id]}
+            visible={filters.classVisibility[id]}
+            onThresholdChange={(v) => onClassThresholdChange(id, v)}
+            onVisibilityToggle={() => onClassVisibilityToggle(id)}
           />
         ))}
       </div>

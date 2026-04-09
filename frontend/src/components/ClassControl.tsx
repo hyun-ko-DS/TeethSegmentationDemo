@@ -69,7 +69,7 @@ export function ClassControl({
 
       {/* 슬라이더 */}
       <Slider.Root
-        min={0}
+        min={0.01}
         max={1}
         step={0.01}
         value={[threshold]}

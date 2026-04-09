@@ -1,6 +1,7 @@
 import { ControlSidebar } from "./components/ControlSidebar";
 import { ImageUpload } from "./components/ImageUpload";
 import { LoadingOverlay } from "./components/LoadingOverlay";
+import { SamplePicker } from "./components/SamplePicker";
 import { SegmentationCanvas } from "./components/SegmentationCanvas";
 import { useSegmentation } from "./hooks/useSegmentation";
 
@@ -13,6 +14,7 @@ function App() {
     error,
     processingTimeMs,
     predict,
+    predictSample,
     updateGlobalThreshold,
     updateClassThreshold,
     toggleClassVisibility,
@@ -39,7 +41,13 @@ function App() {
         {/* 왼쪽: 이미지 영역 */}
         <div className="flex-1 flex flex-col gap-4 min-w-0">
           {!imageUrl ? (
-            <ImageUpload onFileSelect={predict} disabled={isLoading} />
+            <div className="flex flex-col gap-3">
+              <p className="text-xs text-muted-foreground px-1">Choose an option</p>
+              <div className="grid grid-cols-2 gap-4" style={{ minHeight: "220px" }}>
+                <ImageUpload onFileSelect={predict} disabled={isLoading} />
+                <SamplePicker onSelect={predict} onSamplePredict={predictSample} disabled={isLoading} />
+              </div>
+            </div>
           ) : (
             <div className="relative flex-1">
               <SegmentationCanvas
@@ -67,14 +75,16 @@ function App() {
           )}
         </div>
 
-        {/* 오른쪽: 사이드바 */}
-        <ControlSidebar
-          filters={filters}
-          onGlobalThresholdChange={updateGlobalThreshold}
-          onClassThresholdChange={updateClassThreshold}
-          onClassVisibilityToggle={toggleClassVisibility}
-          processingTimeMs={processingTimeMs}
-        />
+        {/* 오른쪽: 사이드바 — 이미지 선택 후에만 표시 */}
+        {imageUrl && (
+          <ControlSidebar
+            filters={filters}
+            onGlobalThresholdChange={updateGlobalThreshold}
+            onClassThresholdChange={updateClassThreshold}
+            onClassVisibilityToggle={toggleClassVisibility}
+            processingTimeMs={processingTimeMs}
+          />
+        )}
       </main>
     </div>
   );

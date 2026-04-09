@@ -1,10 +1,9 @@
 """
 WMF(Weighted Mask Fusion) 앙상블 단일 이미지 추론.
-ensemble.py의 핵심 로직을 추출하여 파일 I/O 없이 in-memory로 동작하도록 리팩토링.
-
-핵심 변경: r.path 기반 메타데이터 파일 역조회 →
-          CropResult 인덱스 기반 1:1 직접 매핑으로 교체.
+- YOLO 3개 모델: asyncio.gather() 병렬 실행 + asyncio.to_thread()로 비블로킹
+- WMF 앙상블: asyncio.to_thread()로 비블로킹
 """
+import asyncio
 from dataclasses import dataclass
 import time
 
@@ -24,11 +23,11 @@ class PredictionResult:
     class_id: int
     class_name: str
     confidence: float
-    polygon: list[list[float]]   # [[x_norm, y_norm], ...] 정규화 좌표
+    polygon: list[list[float]]
 
 
 # ============================================================
-# WMF 유틸리티 (ensemble.py에서 이식, 수정 없음)
+# WMF 유틸리티
 # ============================================================
 
 class WMFConfig:
@@ -77,16 +76,9 @@ def perform_wmf_direct(
     model_outputs: list[list[dict]],
     config: WMFConfig,
 ) -> list[dict]:
-    """
-    WMF 앙상블 수행.
-    model_outputs: 모델별 detection 딕셔너리 리스트
-                   각 dict: {class_id, confidence, poly (정규화 polygon 문자열)}
-    반환: 앙상블된 detection 딕셔너리 리스트 (confidence 내림차순)
-    """
     weights = config.weights
     num_models = len(model_outputs)
 
-    # [Step 1] 클러스터링
     clusters: list[list[dict]] = []
     for model_idx, detections in enumerate(model_outputs):
         weight = weights[model_idx] if model_idx < len(weights) else 1.0 / num_models
@@ -106,10 +98,9 @@ def perform_wmf_direct(
             if not matched:
                 clusters.append([det])
 
-    # [Step 2] 융합
     ensemble_results: list[dict] = []
     for cluster in clusters:
-        if len(cluster) < 2:  # 최소 2개 모델 동의 필요
+        if len(cluster) < 2:
             continue
 
         fused_mask = np.zeros((config.canvas_h, config.canvas_w), dtype=np.float32)
@@ -142,6 +133,69 @@ def perform_wmf_direct(
 
 
 # ============================================================
+# 단일 모델 추론 (병렬 실행 단위)
+# ============================================================
+
+def _predict_crop(model, crop_bgr: np.ndarray, imgsz: int, config: dict) -> list:
+    """blocking YOLO 추론 — asyncio.to_thread()로 호출."""
+    return model.predict(
+        source=crop_bgr,
+        imgsz=imgsz,
+        conf=config["conf_thres"],
+        iou=config["iou_thres"],
+        retina_masks=False,
+        verbose=False,
+    )
+
+
+async def _run_model(
+    name: str,
+    model,
+    crops: list[CropResult],
+    config: dict,
+    orig_w: int,
+    orig_h: int,
+    model_num: int,
+) -> list[dict]:
+    """단일 YOLO 모델 추론 — thread에서 실행하여 이벤트 루프 비블로킹."""
+    imgsz = config["roi_image_size"]
+    model_detections: list[dict] = []
+    t_start = time.perf_counter()
+
+    for crop in crops:
+        crop_bgr = cv2.cvtColor(crop.crop_image, cv2.COLOR_RGB2BGR)
+        crop_h_px, crop_w_px = crop_bgr.shape[:2]
+        x_off, y_off = crop.crop_coords[0], crop.crop_coords[1]
+        resized_w, resized_h = crop.original_size
+        print(f"    {name} crop: {crop_w_px}×{crop_h_px} → imgsz={imgsz}")
+
+        results = await asyncio.to_thread(_predict_crop, model, crop_bgr, imgsz, config)
+
+        for r in results:
+            if r.masks is None:
+                continue
+            for i, mask_coords in enumerate(r.masks.xy):
+                global_pts = mask_coords.copy()
+                global_pts[:, 0] += x_off
+                global_pts[:, 1] += y_off
+                global_pts[:, 0] *= orig_w / resized_w
+                global_pts[:, 1] *= orig_h / resized_h
+                norm_poly = global_pts.copy()
+                norm_poly[:, 0] /= orig_w
+                norm_poly[:, 1] /= orig_h
+                norm_poly = np.clip(norm_poly, 0.0, 1.0)
+                model_detections.append({
+                    "class_id": int(r.boxes.cls[i]),
+                    "confidence": float(r.boxes.conf[i]),
+                    "poly": " ".join(map(str, norm_poly.flatten())),
+                })
+
+    t_s = time.perf_counter() - t_start
+    print(f"[{model_num}] YOLO {name}   {t_s:.2f}s  ({len(model_detections)} detections)")
+    return model_detections
+
+
+# ============================================================
 # 단일 이미지 추론 메인 함수
 # ============================================================
 
@@ -151,96 +205,58 @@ async def infer_single_image(
     yolo_models: dict,
     config: dict,
 ) -> tuple[list[PredictionResult], int]:
-    """
-    단일 원본 이미지에 대해 ROI 기반 3개 모델(model_365, model_357, model_355) 앙상블 추론.
-
-    Args:
-        original_image_rgb: 원본 RGB 이미지 (H, W, 3)
-        roi_crops: SAM-3 ROI 전처리 결과
-        yolo_models: 로딩된 YOLO 모델 딕셔너리
-        config: config.json 내용
-
-    Returns:
-        (PredictionResult 리스트, 처리 시간 ms)
-    """
-    start_time = time.time()
+    t_total_start = time.perf_counter()
 
     orig_h, orig_w = original_image_rgb.shape[:2]
-    wmf_config = WMFConfig(config, orig_w, orig_h)
 
-    all_model_detections: list[list[dict]] = []
+    roi_sz = config["roi_image_size"]
+    scale = roi_sz / max(orig_w, orig_h)
+    canvas_w = round(orig_w * scale)
+    canvas_h = round(orig_h * scale)
+    wmf_config = WMFConfig(config, canvas_w, canvas_h)
+    print(f"    WMF canvas: {canvas_w}×{canvas_h}  (원본 {orig_w}×{orig_h}, scale={scale:.3f})")
+
+    # YOLO 3개 모델 병렬 실행
+    t_yolo_start = time.perf_counter()
+    tasks = []
+    model_nums = {mc["name"]: i + 4 for i, mc in enumerate(MODEL_CONFIGS)}
+    async def _empty() -> list[dict]:
+        return []
 
     for mc in MODEL_CONFIGS:
         name = mc["name"]
-        if name not in yolo_models:
-            all_model_detections.append([])
-            continue
+        if name not in yolo_models or not roi_crops:
+            print(f"    {name}  — skipped")
+            tasks.append(_empty())
+        else:
+            tasks.append(_run_model(
+                name, yolo_models[name], roi_crops,
+                config, orig_w, orig_h, model_nums[name],
+            ))
 
-        model = yolo_models[name]
-        crops = roi_crops  # 모든 모델이 ROI 기반
+    all_model_detections: list[list[dict]] = list(await asyncio.gather(*tasks))
+    t_yolo_s = time.perf_counter() - t_yolo_start
+    print(f"    YOLO 3모델 병렬 완료  {t_yolo_s:.2f}s")
 
-        if not crops:
-            all_model_detections.append([])
-            continue
-
-        imgsz = config["roi_image_size"]
-        model_detections: list[dict] = []
-
-        # 핵심 변경: 파일 경로 대신 numpy 배열로 직접 predict,
-        # r.path 대신 crop 인덱스로 crop_coords 직접 접근
-        for crop in crops:
-            crop_bgr = cv2.cvtColor(crop.crop_image, cv2.COLOR_RGB2BGR)
-            x_off, y_off = crop.crop_coords[0], crop.crop_coords[1]
-            crop_w = crop.crop_coords[2] - crop.crop_coords[0]
-            crop_h = crop.crop_coords[3] - crop.crop_coords[1]
-
-            results = model.predict(
-                source=crop_bgr,
-                imgsz=imgsz,
-                conf=config["conf_thres"],
-                iou=config["iou_thres"],
-                retina_masks=False,
-                verbose=False,
-            )
-
-            for r in results:
-                if r.masks is None:
-                    continue
-                for i, mask_coords in enumerate(r.masks.xy):
-                    # crop 좌표계 → 원본 이미지 좌표계로 역변환
-                    global_pts = mask_coords.copy()
-                    global_pts[:, 0] += x_off
-                    global_pts[:, 1] += y_off
-
-                    # 정규화 (원본 이미지 크기 기준)
-                    norm_poly = global_pts.copy()
-                    norm_poly[:, 0] /= orig_w
-                    norm_poly[:, 1] /= orig_h
-                    norm_poly = np.clip(norm_poly, 0.0, 1.0)
-
-                    model_detections.append({
-                        "class_id": int(r.boxes.cls[i]),
-                        "confidence": float(r.boxes.conf[i]),
-                        "poly": " ".join(map(str, norm_poly.flatten())),
-                    })
-
-        all_model_detections.append(model_detections)
-
-    # WMF 앙상블
-    ensemble_raw = perform_wmf_direct(all_model_detections, wmf_config)
+    # WMF 앙상블 (blocking → thread)
+    total_dets = sum(len(d) for d in all_model_detections)
+    t_wmf_start = time.perf_counter()
+    ensemble_raw = await asyncio.to_thread(perform_wmf_direct, all_model_detections, wmf_config)
+    t_wmf_s = time.perf_counter() - t_wmf_start
+    print(f"[6] WMF 앙상블        {t_wmf_s:.2f}s  ({total_dets} dets → {len(ensemble_raw)} fused)")
 
     # PredictionResult 변환
     predictions: list[PredictionResult] = []
     for det in ensemble_raw:
         cid = det["class_id"]
         coords = np.array(list(map(float, det["poly"].split()))).reshape(-1, 2)
-        polygon = coords.tolist()
         predictions.append(PredictionResult(
             class_id=cid,
             class_name=CLASS_NAMES[cid] if cid < len(CLASS_NAMES) else f"Class {cid}",
             confidence=det["confidence"],
-            polygon=polygon,
+            polygon=coords.tolist(),
         ))
 
-    elapsed_ms = int((time.time() - start_time) * 1000)
+    elapsed_ms = int((time.perf_counter() - t_total_start) * 1000)
+    print(f"    추론+앙상블 소계   {elapsed_ms / 1000:.2f}s")
     return predictions, elapsed_ms

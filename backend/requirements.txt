@@ -27,6 +27,7 @@ git+https://github.com/facebookresearch/sam3.git#egg=sam3
 iopath>=0.1.10
 einops
 timm>=1.0.17
+pycocotools
 
 # Computer Vision
 ultralytics
