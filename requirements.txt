@@ -1,0 +1,55 @@
+# ==============================================================================
+# Core Scientific Computing (For SAM-3 compatibility)
+# ==============================================================================
+numpy==1.26.4
+scipy==1.14.1
+pandas==2.2.3
+einops
+
+# ==============================================================================
+# PyTorch & ONNX Ecosystem (CUDA 12.4 Compatibility)
+# ==============================================================================
+# 1. PyTorch
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.8.0
+torchvision==0.23.0
+torchaudio==2.8.0
+
+# 2. ONNX Runtime
+--extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+onnxruntime-gpu==1.19.0
+protobuf>=3.20.2,<5.0.0
+
+# ==============================================================================
+# SAM-3 & Meta Research
+# ==============================================================================
+-e git+https://github.com/facebookresearch/sam3.git#egg=sam3
+iopath>=0.1.10
+pycocotools>=2.0.8
+
+# ==============================================================================
+# Core Computer Vision & Processing
+# ==============================================================================
+opencv-python==4.10.0.84
+Pillow==10.4.0
+decord==0.6.0; sys_platform != "darwin"
+timm>=1.0.17
+ultralytics
+
+# ==============================================================================
+# TensorRT (CUDA 12.4 Compatibility)
+# ==============================================================================
+tensorrt==10.16.1.11
+tensorrt-cu12==10.16.1.11
+tensorrt-cu12-bindings==10.16.1.11
+tensorrt-cu12-libs==10.16.1.11
+
+# ==============================================================================
+# Others
+# ==============================================================================
+wandb==0.19.1
+python-dotenv==1.0.1
+tqdm==4.67.1
+matplotlib==3.10.0
+gdown
+ipykernel

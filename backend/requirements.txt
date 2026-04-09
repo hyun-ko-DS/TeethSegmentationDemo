@@ -1,0 +1,39 @@
+# FastAPI
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# PyTorch 2.8 + CUDA 12.4 (Runpod RTX 2000 Ada 기준)
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.8.0
+torchvision==0.23.0
+torchaudio==2.8.0
+
+# ONNX Runtime (GPU)
+--extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+onnxruntime-gpu==1.19.0
+protobuf>=3.20.2,<5.0.0
+
+# TensorRT (CUDA 12.4)
+tensorrt==10.16.1.11
+tensorrt-cu12==10.16.1.11
+tensorrt-cu12-bindings==10.16.1.11
+tensorrt-cu12-libs==10.16.1.11
+
+# SAM-3
+git+https://github.com/facebookresearch/sam3.git#egg=sam3
+iopath>=0.1.10
+einops
+timm>=1.0.17
+
+# Computer Vision
+ultralytics
+opencv-python==4.10.0.84
+Pillow==10.4.0
+numpy==1.26.4
+
+# Utils
+python-dotenv==1.0.1
+huggingface_hub
