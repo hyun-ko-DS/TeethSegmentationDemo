@@ -93,6 +93,7 @@ async def predict_sample(filename: str):
         is_instance=False,
         sam_thres=mm.config.get("sam_thres", 0.5),
         sam_input_size=mm.config.get("sam_input_size", 1024),
+
     )
     t_sam_s = time.perf_counter() - t0
     print(f"[2] SAM-3 전처리     {t_sam_s:.2f}s  ({len(roi_crops)} crop(s))")
@@ -206,6 +207,7 @@ async def predict(request: Request, image: UploadFile = File(...)):
         is_instance=False,
         sam_thres=mm.config.get("sam_thres", 0.5),
         sam_input_size=mm.config.get("sam_input_size", 1024),
+
     )
     t_sam_s = time.perf_counter() - t0
     print(f"[3] SAM-3 전처리     {t_sam_s:.2f}s  ({len(roi_crops)} crop(s))")

@@ -21,12 +21,23 @@ class CropResult:
     mode: str                             # "roi" | "instance"
 
 
-def _run_sam3(sam_processor, pil_image: Image.Image, prompt: str) -> dict:
-    """blocking SAM-3 추론 — asyncio.to_thread()로 호출."""
+def _run_sam3(sam_processor, pil_image: Image.Image, prompt: str, sam_dtype=None) -> dict:
+    """blocking SAM-3 추론 — asyncio.to_thread()로 호출.
+
+    모델 가중치는 fp32로 유지하고 추론 구간만 autocast(fp16).
+    SAM3Processor 내부에서 fp32 텐서를 직접 생성하는 경로가 있어
+    model.half()로 가중치를 fp16으로 바꾸면 dtype mismatch가 발생한다.
+    autocast는 matmul 등 op 시점에 입력·가중치 양쪽을 fp16으로 캐스팅하므로 충돌이 없다.
+    """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    with torch.inference_mode(), torch.amp.autocast(device):
-        inference_state = sam_processor.set_image(pil_image)
-        output = sam_processor.set_text_prompt(state=inference_state, prompt=prompt)
+    if device == "cuda":
+        with torch.inference_mode(), torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+            inference_state = sam_processor.set_image(pil_image)
+            output = sam_processor.set_text_prompt(state=inference_state, prompt=prompt)
+    else:
+        with torch.inference_mode():
+            inference_state = sam_processor.set_image(pil_image)
+            output = sam_processor.set_text_prompt(state=inference_state, prompt=prompt)
     return output
 
 

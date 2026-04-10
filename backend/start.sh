@@ -17,6 +17,9 @@ if [ -f "/workspace/.env" ]; then
     cp /workspace/.env /app/.env
 fi
 
+# CUDA 메모리 단편화 방지 (TensorRT + SAM-3 공존 시 필요)
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 echo "🔧 Environment:"
 echo "   MODEL_DIR=${MODEL_DIR:-models}"
 echo "   WEIGHT_TYPE=${WEIGHT_TYPE:-pt}"

@@ -1,5 +1,9 @@
 import os
 import time
+
+# CUDA 메모리 단편화 방지 — torch import 및 CUDA 컨텍스트 초기화 전에 설정해야 효과 있음.
+# TensorRT execution context가 연속된 대용량 블록을 요구할 때 PyTorch 캐시가 방해하는 문제를 해결.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware

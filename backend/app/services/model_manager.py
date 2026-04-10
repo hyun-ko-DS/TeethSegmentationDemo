@@ -38,10 +38,13 @@ CLASS_INFO = {
 CLASS_NAMES = [CLASS_INFO[i] for i in range(len(CLASS_INFO))]
 
 # model_360(instance 전용)은 파이프라인에서 제외 — ROI 기반 3개 모델만 사용
+# weight_type을 per-model로 오버라이드 가능 (미지정 시 settings.weight_type 사용)
+# RTX 2000 Ada (15.6 GB): SAM-3(3.4) + 365-engine(4.2) + 357-engine(3.8) = 11.4 GB
+#   → model_355는 TRT 4.3 GB 추가 시 OOM → pt fallback (동적 할당으로 추론 시 ~1-2 GB)
 MODEL_CONFIGS = [
     {"name": "model_365", "is_roi": True},
     {"name": "model_357", "is_roi": True},
-    {"name": "model_355", "is_roi": True},
+    {"name": "model_355", "is_roi": True, "weight_type": "pt"},  # TRT OOM fallback
 ]
 
 
@@ -67,21 +70,57 @@ class ModelManager:
 
         print("🚀 Initializing ModelManager...")
 
-        # 1. config.json 로딩 (경로는 settings.config_path 기준)
+        # 1. config.json 로딩
         config_path = settings.config_path
         if not os.path.isabs(config_path):
             config_path = os.path.join(_BACKEND_ROOT, config_path)
         self.config = load_config(config_path)
         print(f"✅ Config loaded from {config_path}")
 
-        # 2. YOLO 4개 모델 로딩
+        # 2. SAM-3 먼저 로딩 — TensorRT보다 먼저 GPU 메모리 확보
+        #    (TensorRT engine은 execution context 생성 시 메모리를 통째로 예약하므로
+        #     SAM-3를 나중에 로드하면 OOM 발생)
+        try:
+            from huggingface_hub import login
+            from sam3.model_builder import build_sam3_image_model
+            from sam3.model.sam3_image_processor import Sam3Processor
+
+            if settings.huggingface_api_key:
+                login(token=settings.huggingface_api_key, add_to_git_credential=False)
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            if torch.cuda.is_available():
+                free, total = torch.cuda.mem_get_info()
+                print(f"   • GPU 메모리 — 여유: {free/1024**3:.1f} GB / 전체: {total/1024**3:.1f} GB")
+            print(f"   • Loading SAM-3 on {device} (fp32)...")
+            sam_model = build_sam3_image_model().to(device)
+            sam_model.eval()
+            self.sam_processor = Sam3Processor(sam_model)
+            print("✅ SAM-3 loaded")
+        except Exception as e:
+            print(f"   ⚠️  SAM-3 load failed: {e}")
+            self.sam_processor = None
+
+        # 3. SAM-3 로딩 후 GPU 캐시 정리 후 YOLO 로딩
+        if torch.cuda.is_available():
+            import gc
+            gc.collect()
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+            free, total = torch.cuda.mem_get_info()
+            print(f"   • GPU 메모리 정리 완료 — 여유: {free/1024**3:.1f} GB / 전체: {total/1024**3:.1f} GB")
+
+        # 4. YOLO 모델 로딩
         model_dir = settings.model_dir
         if not os.path.isabs(model_dir):
             model_dir = os.path.join(_BACKEND_ROOT, model_dir)
 
-        ext = settings.weight_type
+        default_ext = settings.weight_type
+        engine_models: list[str] = []
+
         for mc in MODEL_CONFIGS:
             name = mc["name"]
+            ext = mc.get("weight_type", default_ext)
             suffix = name.rsplit("_", 1)[-1]
             weight_path = os.path.join(model_dir, name, f"best_{suffix}.{ext}")
 
@@ -92,49 +131,25 @@ class ModelManager:
             print(f"   • Loading {name} from {weight_path}")
             if ext in ("onnx", "engine"):
                 self.yolo_models[name] = YOLO(weight_path, task="segment")
+                engine_models.append(name)
             else:
                 self.yolo_models[name] = YOLO(weight_path)
             self.is_roi_map[name] = mc["is_roi"]
 
         print(f"✅ {len(self.yolo_models)}/3 YOLO models loaded")
 
-        # TensorRT engine: 첫 predict() 호출 시 execution context가 생성되므로
-        # 병렬 추론 전에 순차적으로 warmup하여 context를 미리 초기화
-        if ext == "engine" and self.yolo_models:
+        # 5. TensorRT engine: warmup으로 execution context 미리 초기화
+        if engine_models:
             import numpy as np
             dummy = np.zeros((64, 64, 3), dtype=np.uint8)
-            for name, model in self.yolo_models.items():
+            for name in engine_models:
                 print(f"   • Warming up TensorRT context: {name}")
-                model.predict(source=dummy, imgsz=64, verbose=False)
+                self.yolo_models[name].predict(source=dummy, imgsz=64, verbose=False)
             print("✅ TensorRT warmup complete")
 
-        # 3. SAM-3 로딩 전 GPU 캐시 정리
         if torch.cuda.is_available():
-            import gc
-            gc.collect()
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
             free, total = torch.cuda.mem_get_info()
-            print(f"   • GPU 메모리 정리 완료 — 여유: {free/1024**3:.1f} GB / 전체: {total/1024**3:.1f} GB")
-
-        # 4. SAM-3 로딩 (HuggingFace 토큰 필요)
-        try:
-            from huggingface_hub import login
-            from sam3.model_builder import build_sam3_image_model
-            from sam3.model.sam3_image_processor import Sam3Processor
-
-            if settings.huggingface_api_key:
-                login(token=settings.huggingface_api_key, add_to_git_credential=False)
-
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"   • Loading SAM-3 on {device}...")
-            sam_model = build_sam3_image_model().to(device)
-            sam_model.eval()
-            self.sam_processor = Sam3Processor(sam_model)
-            print("✅ SAM-3 loaded")
-        except Exception as e:
-            print(f"   ⚠️  SAM-3 load failed: {e}")
-            self.sam_processor = None
+            print(f"   • 최종 GPU 메모리 — 여유: {free/1024**3:.1f} GB / 전체: {total/1024**3:.1f} GB")
 
         self._initialized = True
         print("🎉 ModelManager initialization complete")
