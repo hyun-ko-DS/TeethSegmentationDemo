@@ -108,7 +108,16 @@ class ModelManager:
                 model.predict(source=dummy, imgsz=64, verbose=False)
             print("✅ TensorRT warmup complete")
 
-        # 3. SAM-3 로딩 (HuggingFace 토큰 필요)
+        # 3. SAM-3 로딩 전 GPU 캐시 정리
+        if torch.cuda.is_available():
+            import gc
+            gc.collect()
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+            free, total = torch.cuda.mem_get_info()
+            print(f"   • GPU 메모리 정리 완료 — 여유: {free/1024**3:.1f} GB / 전체: {total/1024**3:.1f} GB")
+
+        # 4. SAM-3 로딩 (HuggingFace 토큰 필요)
         try:
             from huggingface_hub import login
             from sam3.model_builder import build_sam3_image_model
