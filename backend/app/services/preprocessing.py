@@ -36,17 +36,18 @@ async def preprocess_single_image(
     is_instance: bool,
     sam_thres: float = 0.5,
     margin_ratio: float = 0.15,
+    sam_input_size: int = 1024,
 ) -> list[CropResult]:
     mode_str = "instance" if is_instance else "roi"
     prompt = "teeth" if is_instance else "The complete intraoral area including all teeth and gingiva"
 
-    # 1. 이미지 리사이즈 (최대 1024px, SAM-3 권장)
+    # 1. 이미지 리사이즈 (sam_input_size 기준)
     orig_h_pre, orig_w_pre = image_rgb.shape[:2]
     pil_image = Image.fromarray(image_rgb)
-    pil_image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+    pil_image.thumbnail((sam_input_size, sam_input_size), Image.Resampling.LANCZOS)
     img_np = np.array(pil_image)
     img_h, img_w = img_np.shape[:2]
-    print(f"[preproc] SAM-3 input  — {orig_w_pre}×{orig_h_pre}  →  {img_w}×{img_h}  (thumbnail 1024)")
+    print(f"[preproc] SAM-3 input  — {orig_w_pre}×{orig_h_pre}  →  {img_w}×{img_h}  (thumbnail {sam_input_size})")
 
     # 2. SAM-3 추론 (blocking → thread)
     output = await asyncio.to_thread(_run_sam3, sam_processor, pil_image, prompt)

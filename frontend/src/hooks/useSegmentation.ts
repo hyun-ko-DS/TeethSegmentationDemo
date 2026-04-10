@@ -2,6 +2,34 @@ import { useState } from "react";
 import type { FilterState, Prediction, PredictResponse } from "../types/prediction";
 import { NUM_CLASSES } from "../constants/classes";
 
+/**
+ * 업로드 전 이미지를 maxPx 이내로 리사이즈.
+ * 서버가 어차피 512px로 thumbnail하므로 원본 해상도는 불필요.
+ */
+async function resizeForUpload(file: File, maxPx = 1024): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width  * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width  = w;
+      canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
+        "image/jpeg",
+        0.88,
+      );
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const defaultFilters: FilterState = {
@@ -27,15 +55,19 @@ export function useSegmentation() {
     setPredictions([]);
     setProcessingTimeMs(null);
 
-    // 미리보기 URL 생성
+    // 미리보기 URL 생성 (원본 파일로 — 화면엔 고해상도 표시)
     const objectUrl = URL.createObjectURL(file);
     setImageUrl(objectUrl);
 
-    const formData = new FormData();
-    formData.append("image", file);
-
+    // 업로드용 리사이즈 (서버가 어차피 512px thumbnail → 원본 해상도 불필요)
     const t0 = performance.now();
-    console.log(`[FE] 업로드 시작  — ${(file.size / 1024).toFixed(0)} KB`);
+    const uploadBlob = await resizeForUpload(file, 1024);
+    console.log(`[FE] 리사이즈     — ${(file.size / 1024).toFixed(0)} KB → ${(uploadBlob.size / 1024).toFixed(0)} KB  (${((performance.now() - t0)).toFixed(0)} ms)`);
+
+    const formData = new FormData();
+    formData.append("image", uploadBlob, file.name);
+
+    console.log(`[FE] 업로드 시작  — ${(uploadBlob.size / 1024).toFixed(0)} KB`);
 
     try {
       const t1 = performance.now();

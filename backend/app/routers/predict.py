@@ -4,7 +4,7 @@ import os
 import time
 
 import numpy as np
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image
 
@@ -92,6 +92,7 @@ async def predict_sample(filename: str):
         sam_processor=mm.sam_processor,
         is_instance=False,
         sam_thres=mm.config.get("sam_thres", 0.5),
+        sam_input_size=mm.config.get("sam_input_size", 1024),
     )
     t_sam_s = time.perf_counter() - t0
     print(f"[2] SAM-3 전처리     {t_sam_s:.2f}s  ({len(roi_crops)} crop(s))")
@@ -156,22 +157,32 @@ async def classes():
 
 
 @router.post("/predict", response_model=PredictResponse)
-async def predict(image: UploadFile = File(...)):
+async def predict(request: Request, image: UploadFile = File(...)):
     mm = ModelManager.get_instance()
     if not mm.is_ready:
         raise HTTPException(status_code=503, detail="Models not loaded yet")
 
     t_pipeline_start = time.perf_counter()
+    t_arrived   = getattr(request.state, "t_arrived",   t_pipeline_start)
+    t_body_done = getattr(request.state, "t_body_done", t_pipeline_start)
+    body_size   = getattr(request.state, "body_size",   0)
     print("─" * 55)
 
-    # [1] 이미지 수신 (브라우저 → 서버 업로드 완료까지 대기)
-    print(f"[0] 요청 헤더 수신   — body reading 시작...")
+    # [0a] 네트워크 전송 + Starlette 바디 버퍼링
+    t_0a_s = t_body_done - t_arrived
+    print(f"[0a] 네트워크+버퍼링  {t_0a_s:.2f}s  ({body_size // 1024} KB 수신)")
+
+    # [0b] multipart 파싱 + FastAPI 의존성 주입
+    t_0b_s = t_pipeline_start - t_body_done
+    print(f"[0b] multipart 파싱   {t_0b_s:.2f}s")
+
+    # [1] 이미지 바디 읽기 (캐시된 버퍼에서 복사 — 거의 0s)
     t0 = time.perf_counter()
     raw_bytes = await image.read()
     if len(raw_bytes) > MAX_IMAGE_BYTES:
         raise HTTPException(status_code=413, detail="Image size exceeds 20MB limit")
     t_upload_s = time.perf_counter() - t0
-    print(f"[1] 이미지 수신      {t_upload_s:.2f}s  ({len(raw_bytes)/1024:.0f} KB)")
+    print(f"[1] 이미지 수신       {t_upload_s:.2f}s  ({len(raw_bytes)/1024:.0f} KB)")
 
     # [2] 이미지 디코드 (blocking → thread)
     t0 = time.perf_counter()
@@ -194,6 +205,7 @@ async def predict(image: UploadFile = File(...)):
         sam_processor=mm.sam_processor,
         is_instance=False,
         sam_thres=mm.config.get("sam_thres", 0.5),
+        sam_input_size=mm.config.get("sam_input_size", 1024),
     )
     t_sam_s = time.perf_counter() - t0
     print(f"[3] SAM-3 전처리     {t_sam_s:.2f}s  ({len(roi_crops)} crop(s))")
