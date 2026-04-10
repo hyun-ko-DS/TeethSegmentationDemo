@@ -39,12 +39,10 @@ CLASS_NAMES = [CLASS_INFO[i] for i in range(len(CLASS_INFO))]
 
 # model_360(instance 전용)은 파이프라인에서 제외 — ROI 기반 3개 모델만 사용
 # weight_type을 per-model로 오버라이드 가능 (미지정 시 settings.weight_type 사용)
-# RTX 2000 Ada (15.6 GB): SAM-3(3.4) + 365-engine(4.2) + 357-engine(3.8) = 11.4 GB
-#   → model_355는 TRT 4.3 GB 추가 시 OOM → pt fallback (동적 할당으로 추론 시 ~1-2 GB)
 MODEL_CONFIGS = [
     {"name": "model_365", "is_roi": True},
     {"name": "model_357", "is_roi": True},
-    {"name": "model_355", "is_roi": True, "weight_type": "pt"},  # TRT OOM fallback
+    {"name": "model_355", "is_roi": True},
 ]
 
 

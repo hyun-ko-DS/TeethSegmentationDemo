@@ -5,27 +5,27 @@ from pathlib import Path
 DRIVE_IDS = {
     "model_365": {
         "pt": "10b1nx9PUgQWOVVPSRx7m98sJxURfqxhp",
-        "onnx": "1xwpTu5knpAI9igwqOIBy373eUi7MlySI",
+        # "onnx": "1xwpTu5knpAI9igwqOIBy373eUi7MlySI",
         "json": "1We0eBkbrG4_SBn5UVnR_smyLRUpryRBr",
-        "engine": "13fyssWX7NhWRQXjRv2Y9n4IC01-X2Hdb"
+        "engine": "1bimiM7ubjfs66G832s85F6l1ZIQa8YzN"
     },
     "model_360": {
         "pt": "1Kj0-T9xiKdRugcHqaef2NpQ3hyNMmzY4",
-        "onnx": "1C-RiOOO8Gf7G0M-ff8aJZoJn8LFpFsWU",
+        # "onnx": "1C-RiOOO8Gf7G0M-ff8aJZoJn8LFpFsWU",
         "json": "1oOUOEEpgQulWgIEFS9aGtqoFfX2EeXXZ",
-        "engine": "1UlKvPplyNb6CYoDRvvyhyvV5C7nk93_A"
+        # "engine": "1UlKvPplyNb6CYoDRvvyhyvV5C7nk93_A"
     },
     "model_357": {
         "pt": "1rIHJakSahRRVOO1qfZjlAVxEUhO-yFP2",
         "onnx": "1YURCE37EI0PP1xc8_jcewHseyjI4JAf1",
         "json": "1_EjLeM0JaGBrrFAmnYyRt5pBrOnLMhT5",
-        "engine": "1dgbgJH5_8uf3h0ARhs1PGOT-NYTGDMTy"
+        "engine": "1jLSwxZpV7TfqDzeUf2uAOtQha5eQ4QLn"
     },
     "model_355": {
         "pt": "1f3AI8eawYGetpj_KOV9ywrC4QZQjFj50",
         "onnx": "1eObLMQ9tbLwSl2g5NA1lmIwlS5wHNOhO",
         "json": "1PsJrDJ8wqTsMPlz0EJt0WA8pCt5LvIf8",
-        "engine": "1J9YzgeeUL2UVuARTkp9dTbM_McnsnxWu"
+        "engine": "1i_qqD5bQf2bH_SAqS2JdnBewOllJCSM5"
     },
 }
 
