@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000
 
 const defaultFilters: FilterState = {
   globalThreshold: 0.01,
-  classThresholds: Array(NUM_CLASSES).fill(0.01),
+  classThresholds: Array(NUM_CLASSES).fill(0.01).map((v, i) => (i < 3 ? 0.25 : v)),
   // Non-pathologies (0: Abrasion, 1: Filling, 2: Crown) 기본 숨김
   // Pathologies (3~8: Caries Class 1~6) 기본 표시
   classVisibility: Array(NUM_CLASSES).fill(true).map((_, i) => i >= 3),

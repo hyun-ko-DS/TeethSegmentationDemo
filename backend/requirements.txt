@@ -38,3 +38,4 @@ numpy==1.26.4
 # Utils
 python-dotenv==1.0.1
 huggingface_hub
+gdown

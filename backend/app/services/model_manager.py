@@ -98,6 +98,16 @@ class ModelManager:
 
         print(f"✅ {len(self.yolo_models)}/3 YOLO models loaded")
 
+        # TensorRT engine: 첫 predict() 호출 시 execution context가 생성되므로
+        # 병렬 추론 전에 순차적으로 warmup하여 context를 미리 초기화
+        if ext == "engine" and self.yolo_models:
+            import numpy as np
+            dummy = np.zeros((64, 64, 3), dtype=np.uint8)
+            for name, model in self.yolo_models.items():
+                print(f"   • Warming up TensorRT context: {name}")
+                model.predict(source=dummy, imgsz=64, verbose=False)
+            print("✅ TensorRT warmup complete")
+
         # 3. SAM-3 로딩 (HuggingFace 토큰 필요)
         try:
             from huggingface_hub import login
