@@ -13,6 +13,7 @@ function App() {
     isLoading,
     error,
     processingTimeMs,
+    sampleFilename,
     predict,
     predictSample,
     updateGlobalThreshold,
@@ -54,6 +55,7 @@ function App() {
                 imageUrl={imageUrl}
                 predictions={predictions}
                 filters={filters}
+                sampleFilename={sampleFilename}
               />
               {isLoading && <LoadingOverlay />}
             </div>

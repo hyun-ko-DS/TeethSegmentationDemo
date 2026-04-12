@@ -1,13 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RotateCcw, ZoomIn } from "lucide-react";
+import { GitCompareArrows, RotateCcw, ZoomIn } from "lucide-react";
 import type { FilterState, Prediction } from "../types/prediction";
-import { CLASS_COLORS, colorToCss } from "../constants/classes";
+import { CLASS_COLORS, colorToCss, NUM_CLASSES } from "../constants/classes";
 import { useCanvasRenderer } from "../hooks/useCanvasRenderer";
+import { CompareModal } from "./CompareModal";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
+// 비교 뷰에서 사용할 고정 필터 — 기본값과 동일 (non-pathologies 숨김)
+const COMPARE_FILTERS: FilterState = {
+  globalThreshold: 0.01,
+  classThresholds: Array(NUM_CLASSES).fill(0.01).map((v, i) => (i < 3 ? 0.25 : v)),
+  classVisibility: Array(NUM_CLASSES).fill(true).map((_, i) => i >= 3),
+};
 
 interface Props {
   imageUrl: string;
   predictions: Prediction[];
   filters: FilterState;
+  sampleFilename?: string | null;
 }
 
 interface Tooltip {
@@ -51,7 +62,7 @@ function pointInPolygon(px: number, py: number, polygon: [number, number][]): bo
   return inside;
 }
 
-export function SegmentationCanvas({ imageUrl, predictions, filters }: Props) {
+export function SegmentationCanvas({ imageUrl, predictions, filters, sampleFilename }: Props) {
   const wrapperRef  = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const innerRef    = useRef<HTMLDivElement>(null);
@@ -59,6 +70,55 @@ export function SegmentationCanvas({ imageUrl, predictions, filters }: Props) {
 
   const [imgNaturalSize, setImgNaturalSize] = useState({ w: 0, h: 0 });
   const [tooltip, setTooltip]   = useState<Tooltip | null>(null);
+
+  // ── Ground Truth 비교 상태 ──────────────────────────────────
+  const [showCompare, setShowCompare] = useState(false);
+  const [gtPredictions, setGtPredictions] = useState<Prediction[]>([]);
+  const [gtLoading, setGtLoading] = useState(false);
+  const [gtError, setGtError] = useState<string | null>(null);
+
+  // 샘플이 바뀌면 캐시된 GT 초기화
+  useEffect(() => {
+    setGtPredictions([]);
+    setGtError(null);
+    setShowCompare(false);
+  }, [sampleFilename]);
+
+  const openCompare = useCallback(async () => {
+    if (!sampleFilename) return;
+    if (gtPredictions.length > 0) {
+      setShowCompare(true);
+      return;
+    }
+    if (gtError) {
+      setGtError(null);
+    }
+    setGtLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/ground-truth/${encodeURIComponent(sampleFilename)}`,
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "GT not found" }));
+        throw new Error(err.detail ?? "Ground truth not found");
+      }
+      const data = await res.json();
+      setGtPredictions(data.predictions);
+      setShowCompare(true);
+    } catch (e) {
+      setGtError(e instanceof Error ? e.message : "Failed to load ground truth");
+    } finally {
+      setGtLoading(false);
+    }
+  }, [sampleFilename, gtPredictions.length, gtError]);
+
+  const onCompareButtonClick = useCallback(() => {
+    if (showCompare) {
+      setShowCompare(false);
+      return;
+    }
+    void openCompare();
+  }, [showCompare, openCompare]);
   const [zoomMode, setZoomMode] = useState(false);
   const [view, setView]         = useState<ViewState>(INITIAL_VIEW);
   const [isGrabbing, setIsGrabbing] = useState(false);
@@ -66,7 +126,11 @@ export function SegmentationCanvas({ imageUrl, predictions, filters }: Props) {
   const isDragging = useRef(false);
   const dragStart  = useRef({ mouseX: 0, mouseY: 0, viewX: 0, viewY: 0, containerW: 0, containerH: 0 });
 
-  useCanvasRenderer(canvasRef, predictions, filters);
+  const { drawContours } = useCanvasRenderer(canvasRef, predictions, filters);
+
+  // drawContours를 ref로 보관 — ResizeObserver 콜백에서 항상 최신 함수를 참조하기 위함
+  const drawContoursRef = useRef(drawContours);
+  useEffect(() => { drawContoursRef.current = drawContours; }, [drawContours]);
 
   const syncCanvasSize = () => {
     const inner  = innerRef.current;
@@ -74,8 +138,10 @@ export function SegmentationCanvas({ imageUrl, predictions, filters }: Props) {
     if (!inner || !canvas) return;
     const img = inner.querySelector("img");
     if (!img) return;
+    // canvas.width/height 재할당은 캔버스를 지우므로, 이후 반드시 다시 그려야 함
     canvas.width  = img.offsetWidth;
     canvas.height = img.offsetHeight;
+    drawContoursRef.current();
   };
 
   useEffect(() => {
@@ -230,6 +296,23 @@ export function SegmentationCanvas({ imageUrl, predictions, filters }: Props) {
     <div className="flex flex-col gap-1.5 w-full">
       {/* ── 툴바 (이미지 바깥 상단 우측) ─────────────────── */}
       <div className="flex justify-end items-center gap-1.5">
+        {/* Compare with Ground Truth — 샘플 이미지 추론 후에만 표시 */}
+        {sampleFilename && (
+          <button
+            type="button"
+            onClick={onCompareButtonClick}
+            disabled={gtLoading}
+            title={showCompare ? "비교 뷰 닫기" : "Ground Truth와 나란히 비교"}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded border
+                       border-border bg-card text-muted-foreground
+                       hover:text-foreground hover:border-foreground/40 transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <GitCompareArrows className="w-3.5 h-3.5 shrink-0" />
+            {gtLoading ? "Loading…" : showCompare ? "Close comparison" : "Compare with Ground Truth"}
+          </button>
+        )}
+
         {zoomMode && view.scale > 1 && (
           <button
             onClick={resetZoom}
@@ -253,62 +336,82 @@ export function SegmentationCanvas({ imageUrl, predictions, filters }: Props) {
         </button>
       </div>
 
-      {/* ── 이미지 뷰포트 + 툴팁 ──────────────────────────── */}
+      {/* ── 이미지 뷰포트 + 툴팁 / 또는 인라인 GT vs Pred ───────── */}
       <div
         ref={wrapperRef}
-        className="relative w-full"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
+        className="relative w-full flex flex-col gap-3"
+        onMouseMove={showCompare ? undefined : handleMouseMove}
+        onMouseLeave={showCompare ? undefined : handleMouseLeave}
       >
-        <div
-          ref={viewportRef}
-          className="overflow-hidden rounded-lg"
-          style={{ cursor: zoomMode ? (isGrabbing ? "grabbing" : "grab") : "default" }}
-          onWheel={zoomMode ? handleWheel : undefined}
-          onMouseDown={zoomMode ? handleMouseDown : undefined}
-        >
-          <div
-            ref={innerRef}
-            className="relative w-full"
-            style={{
-              transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
-              transformOrigin: "0 0",
-              willChange: "transform",
-            }}
-          >
-            <img
-              src={imageUrl}
-              alt="Uploaded dental"
-              className="w-full h-auto block"
-              onLoad={(e) => {
-                const img = e.currentTarget;
-                setImgNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-              }}
-            />
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 pointer-events-none"
-              style={{ width: "100%", height: "100%" }}
-            />
-          </div>
-        </div>
+        {showCompare && !gtError ? (
+          <CompareModal
+            imageUrl={imageUrl}
+            gtPredictions={gtPredictions}
+            predictions={predictions}
+            filters={filters}
+            onClose={() => setShowCompare(false)}
+          />
+        ) : (
+          <>
+            <div
+              ref={viewportRef}
+              className="overflow-hidden rounded-lg"
+              style={{ cursor: zoomMode ? (isGrabbing ? "grabbing" : "grab") : "default" }}
+              onWheel={zoomMode ? handleWheel : undefined}
+              onMouseDown={zoomMode ? handleMouseDown : undefined}
+            >
+              <div
+                ref={innerRef}
+                className="relative w-full"
+                style={{
+                  transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+                  transformOrigin: "0 0",
+                  willChange: "transform",
+                }}
+              >
+                <img
+                  src={imageUrl}
+                  alt="Uploaded dental"
+                  className="w-full h-auto block"
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setImgNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+                  }}
+                />
+                <canvas
+                  ref={canvasRef}
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ width: "100%", height: "100%" }}
+                />
+              </div>
+            </div>
 
-        {tooltip && (
-          <div
-            className="absolute pointer-events-none z-10 px-2 py-1 text-xs rounded whitespace-nowrap"
-            style={{
-              left: tooltip.x + 14,
-              top:  tooltip.y + 14,
-              backgroundColor: "rgba(0, 0, 0, 0.78)",
-              color:  tooltip.color,
-              border: `1px solid ${tooltip.color}`,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {tooltip.text}
-          </div>
+            {tooltip && (
+              <div
+                className="absolute pointer-events-none z-10 px-2 py-1 text-xs rounded whitespace-nowrap"
+                style={{
+                  left: tooltip.x + 14,
+                  top:  tooltip.y + 14,
+                  backgroundColor: "rgba(0, 0, 0, 0.78)",
+                  color:  tooltip.color,
+                  border: `1px solid ${tooltip.color}`,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {tooltip.text}
+              </div>
+            )}
+          </>
         )}
       </div>
+
+      {/* ── GT 에러 메시지 ─────────────────────────────────── */}
+      {gtError && (
+        <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded-md px-3 py-1.5">
+          GT 로드 실패: {gtError}
+        </div>
+      )}
+
     </div>
   );
 }

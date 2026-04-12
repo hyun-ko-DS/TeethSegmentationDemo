@@ -2,23 +2,38 @@ import { useEffect, useRef, useState } from "react";
 import { Images, X } from "lucide-react";
 import { cn } from "../lib/utils";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
+type Split = "valid" | "test";
 
 interface Props {
   onSelect: (file: File) => void;
-  onSamplePredict: (filename: string) => void;
+  onSamplePredict: (filename: string, split: Split) => void;
   disabled?: boolean;
 }
 
 export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }: Props) {
   const [open, setOpen] = useState(false);
+  const [split, setSplit] = useState<Split>("valid");
   const [filenames, setFilenames] = useState<string[]>([]);
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  // split 바뀔 때마다 해당 폴더 파일 목록 재조회
   useEffect(() => {
-    fetch(`${API_BASE_URL}/samples`)
+    if (!open) return;
+    setFilenames([]);
+    fetch(`${API_BASE_URL}/samples/${split}`)
       .then((r) => r.json())
       .then((d) => setFilenames(d.filenames ?? []))
+      .catch(() => {});
+  }, [open, split]);
+
+  // 초기 valid 파일 수 표시용 (버튼 닫힌 상태에서도 보여주기 위해)
+  const [validCount, setValidCount] = useState(0);
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/samples/valid`)
+      .then((r) => r.json())
+      .then((d) => setValidCount((d.filenames ?? []).length))
       .catch(() => {});
   }, []);
 
@@ -34,16 +49,22 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  const handleOpen = () => {
+    if (disabled) return;
+    setSplit("valid");   // 열 때마다 valid로 초기화
+    setOpen(true);
+  };
+
   const handlePick = (filename: string) => {
     setOpen(false);
-    onSamplePredict(filename);
+    onSamplePredict(filename, split);
   };
 
   return (
     <>
-      {/* 오른쪽 사각형 버튼 */}
+      {/* 진입 버튼 */}
       <button
-        onClick={() => !disabled && setOpen(true)}
+        onClick={handleOpen}
         disabled={disabled}
         className={cn(
           "flex flex-col items-center justify-center gap-3 w-full h-full",
@@ -56,7 +77,7 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
         <Images className="w-8 h-8 text-muted-foreground" />
         <div className="text-center">
           <p className="text-sm font-medium text-foreground">Choose from existing images</p>
-          <p className="text-xs text-muted-foreground mt-1">{filenames.length} images available</p>
+          <p className="text-xs text-muted-foreground mt-1">{validCount} images available</p>
         </div>
       </button>
 
@@ -68,8 +89,37 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
             className="bg-background border border-border rounded-xl shadow-2xl w-[720px] max-w-[95vw] max-h-[80vh] flex flex-col"
           >
             {/* 모달 헤더 */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
-              <span className="text-sm font-semibold">Select an image</span>
+            <div className="flex items-center gap-3 px-5 py-3 border-b border-border shrink-0">
+              {/* Split 토글 */}
+              <div className="flex rounded-md border border-border overflow-hidden text-xs">
+                <button
+                  onClick={() => setSplit("valid")}
+                  className={cn(
+                    "px-3 py-1.5 transition-colors",
+                    split === "valid"
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                  )}
+                >
+                  Valid <span className="opacity-60">(with GT)</span>
+                </button>
+                <div className="w-px bg-border" />
+                <button
+                  onClick={() => setSplit("test")}
+                  className={cn(
+                    "px-3 py-1.5 transition-colors",
+                    split === "test"
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                  )}
+                >
+                  Test <span className="opacity-60">(without GT)</span>
+                </button>
+              </div>
+
+              <span className="text-xs text-muted-foreground ml-auto">
+                {filenames.length} images
+              </span>
               <button
                 onClick={() => setOpen(false)}
                 className="p-1 rounded hover:bg-muted transition-colors"
@@ -79,30 +129,43 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
             </div>
 
             {/* 이미지 그리드 */}
-            <div className="overflow-y-auto p-4 grid grid-cols-4 gap-3">
-              {filenames.map((filename) => (
-                  <button
-                    key={filename}
-                    onClick={() => handlePick(filename)}
-                    disabled={disabled}
-                    className={cn(
-                      "relative aspect-video rounded-lg overflow-hidden border border-border",
-                      "hover:border-foreground/50 hover:scale-[1.02] transition-all",
-                      disabled && "opacity-50 pointer-events-none",
-                    )}
-                    title={filename}
-                  >
-                    <img
-                      src={`${API_BASE_URL}/thumbnail/${filename}`}
-                      alt={filename}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute bottom-0 inset-x-0 bg-black/50 px-1.5 py-0.5">
-                      <p className="text-[10px] text-white truncate">{filename}</p>
-                    </div>
-                  </button>
-              ))}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              <div className="grid grid-cols-4 gap-3">
+                {filenames.length === 0 ? (
+                  <p className="col-span-4 text-center text-xs text-muted-foreground py-8">
+                    Loading…
+                  </p>
+                ) : (
+                  filenames.map((filename, idx) => {
+                    const label = `image_${String(idx + 1).padStart(2, "0")}`;
+                    return (
+                      <button
+                        key={filename}
+                        onClick={() => handlePick(filename)}
+                        disabled={disabled}
+                        className={cn(
+                          "flex flex-col rounded-lg overflow-hidden border border-border",
+                          "hover:border-foreground/50 hover:scale-[1.02] transition-all",
+                          disabled && "opacity-50 pointer-events-none",
+                        )}
+                        title={filename}
+                      >
+                        <div className="aspect-video w-full overflow-hidden bg-muted shrink-0">
+                          <img
+                            src={`${API_BASE_URL}/thumbnail/${split}/${filename}`}
+                            alt={label}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="bg-black/70 px-1.5 py-0.5 w-full">
+                          <p className="text-[10px] text-white truncate text-left">{label}</p>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         </div>

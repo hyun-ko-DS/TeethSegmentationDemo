@@ -14,8 +14,9 @@ from app.core.config import settings
 from app.services.model_manager import ModelManager
 from app.routers import predict
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SAMPLES_DIR = os.path.join(_REPO_ROOT, "data", "images", "valid")
+_REPO_ROOT   = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_VALID_DIR   = os.path.join(_REPO_ROOT, "data", "images", "valid")
+_TEST_DIR    = os.path.join(_REPO_ROOT, "data", "images", "test")
 
 
 @asynccontextmanager
@@ -50,6 +51,8 @@ app.add_middleware(
 
 app.include_router(predict.router)
 
-# 샘플 이미지 정적 파일 서빙
-if os.path.isdir(SAMPLES_DIR):
-    app.mount("/static/samples", StaticFiles(directory=SAMPLES_DIR), name="samples")
+# 샘플 이미지 정적 파일 서빙 (valid / test 분리)
+if os.path.isdir(_VALID_DIR):
+    app.mount("/static/samples/valid", StaticFiles(directory=_VALID_DIR), name="samples_valid")
+if os.path.isdir(_TEST_DIR):
+    app.mount("/static/samples/test", StaticFiles(directory=_TEST_DIR), name="samples_test")

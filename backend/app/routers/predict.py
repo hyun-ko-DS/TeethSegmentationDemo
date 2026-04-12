@@ -23,29 +23,46 @@ router = APIRouter()
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20MB
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-_SAMPLES_DIR = os.path.join(_REPO_ROOT, "data", "images", "valid")
+_REPO_ROOT   = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+_LABELS_DIR  = os.path.join(_REPO_ROOT, "data", "labels", "valid")
 _SAMPLE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
+_SPLIT_DIRS: dict[str, str] = {
+    "valid": os.path.join(_REPO_ROOT, "data", "images", "valid"),
+    "test":  os.path.join(_REPO_ROOT, "data", "images", "test"),
+}
 
-@router.get("/samples")
-async def list_samples():
-    if not os.path.isdir(_SAMPLES_DIR):
+import re as _re
+
+def _validate_split(split: str) -> str:
+    if split not in _SPLIT_DIRS:
+        raise HTTPException(status_code=400, detail="split must be 'valid' or 'test'")
+    return _SPLIT_DIRS[split]
+
+def _validate_filename(filename: str) -> str:
+    if not _re.match(r'^[\w\-. ]+$', filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return filename
+
+
+@router.get("/samples/{split}")
+async def list_samples(split: str):
+    samples_dir = _validate_split(split)
+    if not os.path.isdir(samples_dir):
         return JSONResponse(content={"filenames": []})
     filenames = sorted(
-        f for f in os.listdir(_SAMPLES_DIR)
+        f for f in os.listdir(samples_dir)
         if os.path.splitext(f)[1].lower() in _SAMPLE_EXTS
     )
     return JSONResponse(content={"filenames": filenames})
 
 
-@router.get("/thumbnail/{filename}")
-async def thumbnail(filename: str):
+@router.get("/thumbnail/{split}/{filename}")
+async def thumbnail(split: str, filename: str):
     from fastapi.responses import Response
-    import re
-    if not re.match(r'^[\w\-. ]+$', filename):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    filepath = os.path.join(_SAMPLES_DIR, filename)
+    samples_dir = _validate_split(split)
+    _validate_filename(filename)
+    filepath = os.path.join(samples_dir, filename)
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=404, detail="File not found")
     img = Image.open(filepath).convert("RGB")
@@ -55,13 +72,12 @@ async def thumbnail(filename: str):
     return Response(content=buf.getvalue(), media_type="image/jpeg")
 
 
-@router.post("/predict-sample/{filename}", response_model=PredictResponse)
-async def predict_sample(filename: str):
+@router.post("/predict-sample/{split}/{filename}", response_model=PredictResponse)
+async def predict_sample(split: str, filename: str):
     """샘플 이미지를 서버에서 직접 읽어 추론 — 브라우저 업로드 왕복 없음."""
-    import re
-    if not re.match(r'^[\w\-. ]+$', filename):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    filepath = os.path.join(_SAMPLES_DIR, filename)
+    samples_dir = _validate_split(split)
+    _validate_filename(filename)
+    filepath = os.path.join(samples_dir, filename)
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=404, detail="Sample not found")
 
@@ -132,6 +148,54 @@ async def predict_sample(filename: str):
     print(f"    백엔드 총 소요    {t_total_s:.2f}s")
     print("─" * 55)
     return response
+
+
+@router.get("/ground-truth/{filename}", response_model=PredictResponse)
+async def ground_truth(filename: str):
+    """샘플 이미지의 YOLO 세그멘테이션 라벨(.txt)을 읽어 GT 폴리곤 반환."""
+    import re
+    if not re.match(r'^[\w\-. ]+$', filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    basename = os.path.splitext(filename)[0]
+    label_path = os.path.join(_LABELS_DIR, f"{basename}.txt")
+    img_path   = os.path.join(_SPLIT_DIRS["valid"], filename)
+
+    if not os.path.isfile(label_path):
+        raise HTTPException(status_code=404, detail="Ground truth label not found")
+    if not os.path.isfile(img_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    img = Image.open(img_path)
+    orig_w, orig_h = img.size
+
+    gt_items: list[PredictionItem] = []
+    with open(label_path, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            # YOLO 세그멘테이션 형식: class_id x1 y1 x2 y2 ... (최소 점 3개 = 7개 값)
+            if len(parts) < 7:
+                continue
+            try:
+                class_id = int(parts[0])
+                coords   = list(map(float, parts[1:]))
+            except ValueError:
+                continue
+            polygon = [[coords[i], coords[i + 1]] for i in range(0, len(coords) - 1, 2)]
+            cname   = CLASS_NAMES[class_id] if class_id < len(CLASS_NAMES) else f"Class {class_id}"
+            gt_items.append(PredictionItem(
+                class_id=class_id,
+                class_name=cname,
+                confidence=1.0,   # GT는 confidence = 1.0 고정
+                polygon=polygon,
+            ))
+
+    return PredictResponse(
+        image_width=orig_w,
+        image_height=orig_h,
+        predictions=gt_items,
+        processing_time_ms=0,
+    )
 
 
 @router.get("/health", response_model=HealthResponse)

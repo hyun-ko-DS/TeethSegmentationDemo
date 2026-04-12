@@ -48,12 +48,15 @@ export function useSegmentation() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [processingTimeMs, setProcessingTimeMs] = useState<number | null>(null);
+  // 샘플 이미지 추론일 때만 설정 — GT 비교 버튼 활성화에 사용
+  const [sampleFilename, setSampleFilename] = useState<string | null>(null);
 
   const predict = async (file: File) => {
     setIsLoading(true);
     setError(null);
     setPredictions([]);
     setProcessingTimeMs(null);
+    setSampleFilename(null);
 
     // 미리보기 URL 생성 (원본 파일로 — 화면엔 고해상도 표시)
     const objectUrl = URL.createObjectURL(file);
@@ -123,20 +126,21 @@ export function useSegmentation() {
     });
   };
 
-  const predictSample = async (filename: string) => {
+  const predictSample = async (filename: string, split: "valid" | "test" = "valid") => {
     setIsLoading(true);
     setError(null);
     setPredictions([]);
     setProcessingTimeMs(null);
+    setSampleFilename(null);
 
     // 미리보기: 썸네일로 먼저 표시 (원본 5MB+ 다운로드가 POST 요청과 경합하지 않도록)
-    setImageUrl(`${API_BASE_URL}/thumbnail/${filename}`);
+    setImageUrl(`${API_BASE_URL}/thumbnail/${split}/${filename}`);
 
     const t0 = performance.now();
     console.log(`[FE] 샘플 추론 시작 — ${filename}`);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/predict-sample/${encodeURIComponent(filename)}`, {
+      const res = await fetch(`${API_BASE_URL}/predict-sample/${split}/${encodeURIComponent(filename)}`, {
         method: "POST",
       });
 
@@ -154,8 +158,10 @@ export function useSegmentation() {
       setPredictions(data.predictions);
       setImageSize({ width: data.image_width, height: data.image_height });
       setProcessingTimeMs(data.processing_time_ms);
+      // valid일 때만 sampleFilename 설정 → GT 비교 버튼 활성화
+      setSampleFilename(split === "valid" ? filename : null);
       // 추론 완료 후 원본 이미지로 교체 (폴리곤 정확도를 위해)
-      setImageUrl(`${API_BASE_URL}/static/samples/${filename}`);
+      setImageUrl(`${API_BASE_URL}/static/samples/${split}/${filename}`);
 
       requestAnimationFrame(() => {
         const t3 = performance.now();
@@ -175,6 +181,7 @@ export function useSegmentation() {
     setFilters(defaultFilters);
     setError(null);
     setProcessingTimeMs(null);
+    setSampleFilename(null);
   };
 
   return {
@@ -185,6 +192,7 @@ export function useSegmentation() {
     isLoading,
     error,
     processingTimeMs,
+    sampleFilename,
     predict,
     predictSample,
     updateGlobalThreshold,
