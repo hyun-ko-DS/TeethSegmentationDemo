@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { FilterState, Prediction } from "../types/prediction";
 import { CLASS_COLORS, colorToCss } from "../constants/classes";
+import { useLang } from "../contexts/LangContext";
+import { UI } from "../constants/uiStrings";
 
 // ── 캔버스 렌더링 ─────────────────────────────────────────────
 
@@ -209,6 +211,8 @@ export function CompareModal({
   filters,
   onClose,
 }: Props) {
+  const t = UI[useLang()];
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -222,7 +226,7 @@ export function CompareModal({
       className="w-full flex flex-col gap-3 rounded-lg border border-border bg-card/30 p-4"
     >
       <div className="flex items-center justify-between shrink-0 gap-2">
-        <span className="text-sm font-semibold">Ground Truth vs Prediction</span>
+        <span className="text-sm font-semibold">{t.gtVsPred}</span>
         <button
           type="button"
           onClick={onClose}
@@ -235,7 +239,7 @@ export function CompareModal({
 
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 min-h-0 w-full">
         <ComparePanel
-          title="Ground Truth"
+          title={t.groundTruth}
           imageUrl={imageUrl}
           predictions={gtPredictions}
           filters={filters}
@@ -244,7 +248,7 @@ export function CompareModal({
         <div className="hidden sm:block w-px bg-border shrink-0 self-stretch" />
         <div className="sm:hidden h-px w-full bg-border shrink-0" aria-hidden />
         <ComparePanel
-          title="Prediction"
+          title={t.prediction}
           imageUrl={imageUrl}
           predictions={predictions}
           filters={filters}

@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Images, X } from "lucide-react";
 import { cn } from "../lib/utils";
+import { useLang } from "../contexts/LangContext";
+import { UI } from "../constants/uiStrings";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 type Split = "valid" | "test";
 
 interface Props {
-  onSelect: (file: File) => void;
-  onSamplePredict: (filename: string, split: Split) => void;
+  onSampleStage: (filename: string, split: Split) => void;
   disabled?: boolean;
 }
 
-export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }: Props) {
+export function SamplePicker({ onSampleStage, disabled }: Props) {
+  const t = UI[useLang()];
   const [open, setOpen] = useState(false);
   const [split, setSplit] = useState<Split>("valid");
   const [filenames, setFilenames] = useState<string[]>([]);
@@ -28,13 +30,15 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
       .catch(() => {});
   }, [open, split]);
 
-  // 초기 valid 파일 수 표시용 (버튼 닫힌 상태에서도 보여주기 위해)
-  const [validCount, setValidCount] = useState(0);
+  // 초기 전체 이미지 수 표시용 (valid + test 합산)
+  const [totalCount, setTotalCount] = useState(0);
   useEffect(() => {
-    fetch(`${API_BASE_URL}/samples/valid`)
-      .then((r) => r.json())
-      .then((d) => setValidCount((d.filenames ?? []).length))
-      .catch(() => {});
+    Promise.all([
+      fetch(`${API_BASE_URL}/samples/valid`).then((r) => r.json()).catch(() => ({ filenames: [] })),
+      fetch(`${API_BASE_URL}/samples/test`).then((r) => r.json()).catch(() => ({ filenames: [] })),
+    ]).then(([v, t]) => {
+      setTotalCount((v.filenames ?? []).length + (t.filenames ?? []).length);
+    });
   }, []);
 
   // 모달 바깥 클릭 닫기
@@ -57,7 +61,7 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
 
   const handlePick = (filename: string) => {
     setOpen(false);
-    onSamplePredict(filename, split);
+    onSampleStage(filename, split);
   };
 
   return (
@@ -70,14 +74,14 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
           "flex flex-col items-center justify-center gap-3 w-full h-full",
           "border-2 border-dashed rounded-xl p-12 cursor-pointer",
           "transition-colors duration-150",
-          "border-border hover:border-foreground/40 hover:bg-muted/20",
+          "border-border hover:border-primary/60 hover:bg-primary/5",
           disabled && "pointer-events-none opacity-50",
         )}
       >
         <Images className="w-8 h-8 text-muted-foreground" />
         <div className="text-center">
-          <p className="text-sm font-medium text-foreground">Choose from existing images</p>
-          <p className="text-xs text-muted-foreground mt-1">{validCount} images available</p>
+          <p className="text-sm font-medium text-foreground">{t.sampleTitle}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t.sampleCount(totalCount)}</p>
         </div>
       </button>
 
@@ -101,7 +105,7 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
                   )}
                 >
-                  Valid <span className="opacity-60">(with GT)</span>
+                  {t.splitValid}
                 </button>
                 <div className="w-px bg-border" />
                 <button
@@ -113,12 +117,12 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
                   )}
                 >
-                  Test <span className="opacity-60">(without GT)</span>
+                  {t.splitTest}
                 </button>
               </div>
 
               <span className="text-xs text-muted-foreground ml-auto">
-                {filenames.length} images
+                {t.imageCount(filenames.length)}
               </span>
               <button
                 onClick={() => setOpen(false)}
@@ -133,7 +137,7 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
               <div className="grid grid-cols-4 gap-3">
                 {filenames.length === 0 ? (
                   <p className="col-span-4 text-center text-xs text-muted-foreground py-8">
-                    Loading…
+                    {t.loading}
                   </p>
                 ) : (
                   filenames.map((filename, idx) => {
@@ -145,7 +149,7 @@ export function SamplePicker({ onSelect: _onSelect, onSamplePredict, disabled }:
                         disabled={disabled}
                         className={cn(
                           "flex flex-col rounded-lg overflow-hidden border border-border",
-                          "hover:border-foreground/50 hover:scale-[1.02] transition-all",
+                          "hover:border-primary/60 hover:scale-[1.02] transition-all",
                           disabled && "opacity-50 pointer-events-none",
                         )}
                         title={filename}

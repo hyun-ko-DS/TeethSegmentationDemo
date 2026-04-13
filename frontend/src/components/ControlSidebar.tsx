@@ -1,6 +1,9 @@
 import { SlidersHorizontal } from "lucide-react";
 import type { FilterState } from "../types/prediction";
 import { ClassControl } from "./ClassControl";
+import { CLASS_DESCRIPTIONS } from "../constants/classDescriptions";
+import { useLang } from "../contexts/LangContext";
+import { UI } from "../constants/uiStrings";
 
 interface Props {
   filters: FilterState;
@@ -32,12 +35,15 @@ export function ControlSidebar({
   onClassVisibilityToggle,
   processingTimeMs,
 }: Props) {
+  const lang = useLang();
+  const t = UI[lang];
+  const descriptions = CLASS_DESCRIPTIONS[lang];
   return (
-    <aside className="flex flex-col gap-4 w-72 shrink-0 h-full overflow-y-auto">
+    <aside className="flex flex-col gap-4 w-72 shrink-0 h-full overflow-y-auto border-l border-border pl-5">
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-1">
         <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm font-semibold text-foreground">Controls</span>
+        <span className="text-sm font-semibold text-foreground">{t.controls}</span>
         {processingTimeMs !== null && (
           <span className="ml-auto text-xs text-muted-foreground">
             {(processingTimeMs / 1000).toFixed(1)}s
@@ -48,13 +54,14 @@ export function ControlSidebar({
       {/* Non-Pathologies 그룹 */}
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold text-muted-foreground px-1 uppercase tracking-wide">
-          Non-Pathologies
+          {t.nonPathologies}
         </span>
         {NON_PATHOLOGIES.map(({ id, name }) => (
           <ClassControl
             key={id}
             classId={id}
             className={name}
+            description={descriptions[id]}
             threshold={filters.classThresholds[id]}
             visible={filters.classVisibility[id]}
             onThresholdChange={(v) => onClassThresholdChange(id, v)}
@@ -69,13 +76,14 @@ export function ControlSidebar({
       {/* Pathologies 그룹 */}
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold text-muted-foreground px-1 uppercase tracking-wide">
-          Pathologies
+          {t.pathologies}
         </span>
         {PATHOLOGIES.map(({ id, name }) => (
           <ClassControl
             key={id}
             classId={id}
             className={name}
+            description={descriptions[id]}
             threshold={filters.classThresholds[id]}
             visible={filters.classVisibility[id]}
             onThresholdChange={(v) => onClassThresholdChange(id, v)}

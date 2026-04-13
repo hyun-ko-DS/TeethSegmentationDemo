@@ -8,6 +8,7 @@ import { cn } from "../lib/utils";
 interface Props {
   classId: number;
   className: string;
+  description: string;
   threshold: number;
   visible: boolean;
   onThresholdChange: (value: number) => void;
@@ -17,6 +18,7 @@ interface Props {
 export function ClassControl({
   classId,
   className,
+  description,
   threshold,
   visible,
   onThresholdChange,
@@ -26,8 +28,8 @@ export function ClassControl({
   const checkboxId = `class-vis-${classId}`;
 
   return (
-    <div className={cn("flex flex-col gap-1.5 py-2 px-3 rounded-md", "bg-card/50 border border-border/50")}>
-      {/* 상단: 체크박스 + 색상 도트 + 클래스명 */}
+    <div className={cn("flex flex-col gap-1.5 py-2 px-3 rounded-md", "bg-white border border-border shadow-sm")}>
+      {/* 상단: 체크박스 + 색상 도트 + 클래스명 + ⓘ */}
       <div className="flex items-center gap-2">
         <Checkbox.Root
           id={checkboxId}
@@ -65,6 +67,28 @@ export function ClassControl({
         <span className="text-xs text-muted-foreground tabular-nums w-8 text-right">
           {threshold.toFixed(2)}
         </span>
+
+        {/* ⓘ 툴팁 */}
+        <div className="relative group/info shrink-0">
+          <button
+            type="button"
+            aria-label={`${className} description`}
+            className="flex items-center justify-center w-4 h-4 rounded-full border border-gray-400 bg-white text-black hover:border-gray-600 transition-colors"
+          >
+            <span className="text-[9px] font-bold leading-none select-none">i</span>
+          </button>
+          {/* 툴팁 박스 — 아이콘 아래 오른쪽 정렬 */}
+          <div
+            className={cn(
+              "absolute right-0 top-full mt-1.5 z-[9999]",
+              "w-56 px-3 py-2.5 rounded-lg shadow-2xl",
+              "bg-white border border-gray-200 text-xs text-gray-800 leading-relaxed",
+              "pointer-events-none opacity-0 group-hover/info:opacity-100 transition-opacity duration-150",
+            )}
+          >
+            {description}
+          </div>
+        </div>
       </div>
 
       {/* 슬라이더 */}

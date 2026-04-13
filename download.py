@@ -1,145 +1,137 @@
-import gdown
+import time
+import random
+import zipfile
 from pathlib import Path
 
-# 1. 모든 모델의 Google Drive ID 통합 관리
-DRIVE_IDS = {
-    "model_365": {
-        "pt": "10b1nx9PUgQWOVVPSRx7m98sJxURfqxhp",
-        # "onnx": "1xwpTu5knpAI9igwqOIBy373eUi7MlySI",
-        "json": "1We0eBkbrG4_SBn5UVnR_smyLRUpryRBr",
-        "engine": "1bimiM7ubjfs66G832s85F6l1ZIQa8YzN"
-    },
-    "model_360": {
-        "pt": "1Kj0-T9xiKdRugcHqaef2NpQ3hyNMmzY4",
-        # "onnx": "1C-RiOOO8Gf7G0M-ff8aJZoJn8LFpFsWU",
-        "json": "1oOUOEEpgQulWgIEFS9aGtqoFfX2EeXXZ",
-        # "engine": "1UlKvPplyNb6CYoDRvvyhyvV5C7nk93_A"
-    },
-    "model_357": {
-        "pt": "1rIHJakSahRRVOO1qfZjlAVxEUhO-yFP2",
-        "onnx": "1YURCE37EI0PP1xc8_jcewHseyjI4JAf1",
-        "json": "1_EjLeM0JaGBrrFAmnYyRt5pBrOnLMhT5",
-        "engine": "1jLSwxZpV7TfqDzeUf2uAOtQha5eQ4QLn"
-    },
-    "model_355": {
-        "pt": "1f3AI8eawYGetpj_KOV9ywrC4QZQjFj50",
-        "onnx": "1eObLMQ9tbLwSl2g5NA1lmIwlS5wHNOhO",
-        "json": "1PsJrDJ8wqTsMPlz0EJt0WA8pCt5LvIf8",
-        "engine": "1i_qqD5bQf2bH_SAqS2JdnBewOllJCSM5"
-    },
-}
+import gdown
 
-IMAGE_IDS = {
-    "images": {
-        "valid": "1UGFL_Qc_bPwReqNwgCvnoKTkVUMoM8tZ",
-        "test": "13T0ffhMETP8dSNIWh_FyLKJzKDsDInsV"
+# ── Google Drive ZIP 파일 ID ──────────────────────────────────────
+#   key        : 로컬에 저장할 zip 파일 경로
+#   file_id    : Google Drive 파일 ID
+#   extract_to : 압축 해제 대상 디렉토리
+# ──────────────────────────────────────────────────────────────────
+ZIP_IDS: dict[str, dict] = {
+    "data/images.zip": {
+        "file_id": "1sDWNroxPpEX5_fM1XBILooJ9jKH2wBz8",
+        "extract_to": "data",
     },
-    "labels": {
-        "valid": "1tKfGmuUu1kuhx4xGZ_GUgW4IVIzXRWon"
+    "data/labels.zip": {
+        "file_id": "1h5epXRMRae4gOPJPaz89pjPDGGnYWCM9",
+        "extract_to": "data",
+    },
+    "models/models.zip": {
+        "file_id": "1pmsMXzqgMFkB3fTUQ38Dihxs_xyVWP3d",
+        "extract_to": "models",
     },
 }
 
 
-def download_all_resources():
-    """등록된 모든 모델과 모든 파일 형식을 순차적으로 다운로드"""
-    file_types = ["pt", "onnx", "json", "engine"]
+# ── 다운로드 ──────────────────────────────────────────────────────
 
-    print("🚀 모든 모델 리소스 다운로드를 시작합니다...")
+def download_zip(file_id: str, zip_path: Path, max_retries: int = 5) -> bool:
+    """Google Drive에서 zip 파일 한 개를 다운로드. 실패 시 지수 백오프 후 재시도.
 
-    for model_name, ids in DRIVE_IDS.items():
-        suffix = model_name.rsplit("_", 1)[-1]
-        model_dir = Path("models") / model_name
-        model_dir.mkdir(parents=True, exist_ok=True)
+    Returns:
+        True  — 다운로드 성공 (또는 이미 존재)
+        False — max_retries 소진 후 실패
+    """
+    if zip_path.exists() and zip_path.stat().st_size > 0 and zipfile.is_zipfile(zip_path):
+        print(f"⏩ 스킵 (이미 존재): {zip_path}")
+        return True
 
-        print(f"\n📂 [{model_name}] 처리 중...")
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
 
-        for f_type in file_types:
-            file_id = ids.get(f_type)
-            if not file_id:
-                continue
-
-            # 파일명 규칙 설정
-            if f_type == "json":
-                file_name = f"config_{suffix}.json"
+    for attempt in range(1, max_retries + 1):
+        try:
+            gdown.download(
+                id=file_id,
+                output=str(zip_path),
+                quiet=False,
+                use_cookies=False,
+                resume=True,
+            )
+            if zip_path.is_file() and zip_path.stat().st_size > 0:
+                if zipfile.is_zipfile(zip_path):
+                    return True
+                # Drive가 HTML 오류 페이지를 반환한 경우
+                print(f"   ⚠️  유효하지 않은 zip 수신 ({attempt}/{max_retries})")
             else:
-                file_name = f"best_{suffix}.{f_type}"
+                print(f"   ⚠️  빈 파일 수신 ({attempt}/{max_retries})")
+        except Exception as e:
+            print(f"   ⚠️  에러 ({attempt}/{max_retries}): {e}")
 
-            target_path = model_dir / file_name
+        # 손상된 파일 제거 후 재시도
+        zip_path.unlink(missing_ok=True)
 
-            # 이미 파일이 존재하는지 확인 (중복 다운로드 방지)
-            if target_path.exists():
-                print(f"⏩ 스킵: {target_path} 가 이미 존재합니다.")
-                continue
+        if attempt < max_retries:
+            wait = min(5 * (2 ** (attempt - 1)), 60) + random.uniform(0, 5)
+            print(f"   ⏳ {wait:.1f}s 대기 후 재시도...")
+            time.sleep(wait)
 
-            print(f"📡 다운로드 중: {file_name}")
-            try:
-                gdown.download(id=file_id, output=str(target_path), quiet=True)
-                if target_path.is_file():
-                    print(f"✅ 완료: {target_path}")
-                else:
-                    print(f"❌ 에러: {file_name} 다운로드 확인 실패")
-            except Exception as e:
-                print(f"❌ 에러 발생 ({file_name}): {e}")
-
-    print("\n✨ 모든 작업이 완료되었습니다!")
+    return False
 
 
-def download_data():
-    """images/labels 데이터를 data/ 폴더에 다운로드 (로컬에 없는 파일만)"""
-    print("🚀 데이터 다운로드를 시작합니다...")
+# ── 압축 해제 ─────────────────────────────────────────────────────
 
-    for category, splits in IMAGE_IDS.items():
-        for split, folder_id in splits.items():
-            target_dir = Path("data") / category / split
-            target_dir.mkdir(parents=True, exist_ok=True)
+def extract_zip(zip_path: Path, extract_to: Path) -> int:
+    """zip 파일을 extract_to 디렉토리에 압축 해제.
 
-            print(f"📋 파일 목록 확인 중: data/{category}/{split} ...")
-            try:
-                # 1단계: skip_download=True 로 Drive 파일 목록만 조회 (다운로드 없음)
-                file_list = gdown.download_folder(
-                    id=folder_id,
-                    output=str(target_dir),
-                    quiet=True,
-                    remaining_ok=True,
-                    skip_download=True,
-                )
-                if not file_list:
-                    print(f"   ⚠️  파일 목록을 가져오지 못했습니다.")
-                    continue
+    - macOS 아티팩트(.DS_Store, __MACOSX) 자동 제외
+    - 이미 존재하는 파일은 덮어쓰기
 
-                missing = [f for f in file_list if not Path(f.local_path).exists()]
+    Returns:
+        압축 해제된 파일 수
+    """
+    def _should_skip(name: str) -> bool:
+        parts = Path(name).parts
+        return any(p in (".DS_Store", "__MACOSX") or p.startswith("._") for p in parts)
 
-                if not missing:
-                    print(f"   ⏩ 스킵: 모든 파일({len(file_list)}개)이 이미 존재합니다.")
-                    continue
+    extract_to.mkdir(parents=True, exist_ok=True)
 
-                print(f"   📥 {len(missing)}/{len(file_list)}개 신규 다운로드 시작...")
+    with zipfile.ZipFile(zip_path, "r") as z:
+        members = [m for m in z.namelist() if not _should_skip(m)]
+        for member in members:
+            z.extract(member, extract_to)
+        file_count = sum(1 for m in members if not m.endswith("/"))
 
-                # 2단계: download_folder(resume=True) 로 실제 다운로드
-                #   - resume=True: 이미 완료된 파일은 자동 스킵
-                #   - 폴더 세션 컨텍스트를 사용하므로 개별 파일 권한 문제 없음
-                gdown.download_folder(
-                    id=folder_id,
-                    output=str(target_dir),
-                    quiet=False,
-                    remaining_ok=True,
-                    resume=True,
-                )
+    return file_count
 
-                # 결과 집계
-                downloaded = [f for f in missing if Path(f.local_path).exists()]
-                still_missing = [f for f in missing if not Path(f.local_path).exists()]
-                print(f"   ✅ 완료: {target_dir} ({len(downloaded)}개 신규)")
-                if still_missing:
-                    names = [Path(f.local_path).name for f in still_missing]
-                    print(f"   ⚠️  여전히 없는 파일 ({len(still_missing)}개): {', '.join(names)}")
 
-            except Exception as e:
-                print(f"   ❌ 에러 발생 (data/{category}/{split}): {e}")
-
-    print("\n✨ 데이터 다운로드가 완료되었습니다!")
-
+# ── 메인 ─────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    # download_all_resources()
-    download_data()
+    failed: list[str] = []
+
+    for zip_rel, cfg in ZIP_IDS.items():
+        file_id    = cfg["file_id"]
+        zip_path   = Path(zip_rel)
+        extract_to = Path(cfg["extract_to"])
+
+        if not file_id:
+            print(f"⏩ 스킵: {zip_rel} — Drive ID 미등록")
+            continue
+
+        # 1. 다운로드
+        print(f"\n📡 다운로드 중: {zip_rel}")
+        ok = download_zip(file_id, zip_path)
+        if not ok:
+            print(f"❌ 다운로드 실패: {zip_rel}")
+            failed.append(zip_rel)
+            continue
+        print(f"✅ 다운로드 완료: {zip_rel}")
+
+        # 2. 압축 해제
+        print(f"📦 압축 해제 중: {zip_path} → {extract_to}/")
+        try:
+            count = extract_zip(zip_path, extract_to)
+            print(f"✅ 압축 해제 완료: {count}개 파일 → {extract_to}/")
+        except Exception as e:
+            print(f"❌ 압축 해제 실패 ({zip_rel}): {e}")
+            failed.append(zip_rel)
+
+    if failed:
+        print(f"\n⚠️  실패 목록 ({len(failed)}개):")
+        for f in failed:
+            print(f"   - {f}")
+    else:
+        print("\n✨ 모든 다운로드 및 압축 해제 완료!")

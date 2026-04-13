@@ -28,3 +28,6 @@ frontend/dist/
 # IDE
 .vscode/
 .idea/
+
+# zipfile
+*.zip

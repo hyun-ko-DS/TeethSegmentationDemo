@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GitCompareArrows, RotateCcw, ZoomIn } from "lucide-react";
+import { ClipboardCheck, GitCompareArrows, RotateCcw, ZoomIn } from "lucide-react";
 import type { FilterState, Prediction } from "../types/prediction";
 import { CLASS_COLORS, colorToCss, NUM_CLASSES } from "../constants/classes";
 import { useCanvasRenderer } from "../hooks/useCanvasRenderer";
 import { CompareModal } from "./CompareModal";
+import { useLang } from "../contexts/LangContext";
+import { UI } from "../constants/uiStrings";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -19,6 +21,9 @@ interface Props {
   predictions: Prediction[];
   filters: FilterState;
   sampleFilename?: string | null;
+  isStaged?: boolean;
+  onAnalyze?: () => void;
+  onRecordClick?: () => void;
 }
 
 interface Tooltip {
@@ -62,7 +67,8 @@ function pointInPolygon(px: number, py: number, polygon: [number, number][]): bo
   return inside;
 }
 
-export function SegmentationCanvas({ imageUrl, predictions, filters, sampleFilename }: Props) {
+export function SegmentationCanvas({ imageUrl, predictions, filters, sampleFilename, isStaged, onAnalyze, onRecordClick }: Props) {
+  const t = UI[useLang()];
   const wrapperRef  = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const innerRef    = useRef<HTMLDivElement>(null);
@@ -302,14 +308,14 @@ export function SegmentationCanvas({ imageUrl, predictions, filters, sampleFilen
             type="button"
             onClick={onCompareButtonClick}
             disabled={gtLoading}
-            title={showCompare ? "비교 뷰 닫기" : "Ground Truth와 나란히 비교"}
+            title={showCompare ? t.closeComparison : t.compareGT}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded border
-                       border-border bg-card text-muted-foreground
-                       hover:text-foreground hover:border-foreground/40 transition-colors
+                       border-border bg-white text-muted-foreground
+                       hover:text-primary hover:border-primary/60 transition-colors
                        disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <GitCompareArrows className="w-3.5 h-3.5 shrink-0" />
-            {gtLoading ? "Loading…" : showCompare ? "Close comparison" : "Compare with Ground Truth"}
+            {gtLoading ? t.gtLoading : showCompare ? t.closeComparison : t.compareGT}
           </button>
         )}
 
@@ -317,8 +323,8 @@ export function SegmentationCanvas({ imageUrl, predictions, filters, sampleFilen
           <button
             onClick={resetZoom}
             title="원래 크기로"
-            className="p-1.5 rounded border border-border bg-card text-muted-foreground
-                       hover:text-foreground hover:border-foreground/40 transition-colors"
+            className="p-1.5 rounded border border-border bg-white text-muted-foreground
+                       hover:text-primary hover:border-primary/60 transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -328,12 +334,32 @@ export function SegmentationCanvas({ imageUrl, predictions, filters, sampleFilen
           title={zoomMode ? "줌 모드 끄기" : "줌 모드 켜기"}
           className={`p-1.5 rounded border transition-colors ${
             zoomMode
-              ? "bg-foreground text-background border-foreground"
-              : "bg-card text-muted-foreground border-border hover:text-foreground hover:border-foreground/40"
+              ? "bg-primary text-white border-primary"
+              : "bg-white text-muted-foreground border-border hover:text-primary hover:border-primary/60"
           }`}
         >
           <ZoomIn className="w-3.5 h-3.5" />
         </button>
+
+        {isStaged && onAnalyze && (
+          <button
+            onClick={onAnalyze}
+            className="px-4 py-1.5 rounded border border-red-600 bg-red-600 text-white text-xs font-semibold hover:bg-red-700 hover:border-red-700 active:bg-red-800 transition-colors"
+          >
+            {t.analyze}
+          </button>
+        )}
+
+        {!isStaged && predictions.length > 0 && onRecordClick && (
+          <button
+            onClick={onRecordClick}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-primary bg-primary text-white text-xs font-semibold
+                       hover:bg-primary/90 hover:border-primary/90 active:bg-primary/80 transition-colors"
+          >
+            <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
+            {t.recordButton}
+          </button>
+        )}
       </div>
 
       {/* ── 이미지 뷰포트 + 툴팁 / 또는 인라인 GT vs Pred ───────── */}
@@ -408,7 +434,7 @@ export function SegmentationCanvas({ imageUrl, predictions, filters, sampleFilen
       {/* ── GT 에러 메시지 ─────────────────────────────────── */}
       {gtError && (
         <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded-md px-3 py-1.5">
-          GT 로드 실패: {gtError}
+          {t.gtLoadFailed} {gtError}
         </div>
       )}
 

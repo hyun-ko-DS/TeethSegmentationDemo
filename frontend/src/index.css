@@ -4,13 +4,29 @@
 
 @layer base {
   :root {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 14%;
-    --card-foreground: 210 40% 98%;
-    --muted: 217 33% 20%;
-    --muted-foreground: 215 20% 65%;
-    --border: 217 33% 22%;
+    /* ── 배경 / 텍스트 ─────────────────────────── */
+    --background:         0   0%  100%;   /* pure white            */
+    --foreground:       222  55%  15%;    /* deep navy             */
+
+    /* ── 카드 ──────────────────────────────────── */
+    --card:             210  45%  97%;    /* very pale blue-white  */
+    --card-foreground:  222  55%  15%;
+
+    /* ── 음소거 표면 ────────────────────────────── */
+    --muted:            210  28%  92%;    /* light blue-gray       */
+    --muted-foreground: 215  20%  48%;    /* slate                 */
+
+    /* ── 테두리 ─────────────────────────────────── */
+    --border:           215  40%  76%;    /* soft navy border      */
+
+    /* ── 주요 강조색 (navy) ──────────────────────── */
+    --primary:          222  68%  27%;    /* #1c3872 navy          */
+    --primary-foreground: 0   0%  100%;   /* white                 */
+
+    /* ── 팝오버 ─────────────────────────────────── */
+    --popover:            0   0%  100%;
+    --popover-foreground: 222 55%  15%;
+
     --radius: 0.5rem;
   }
 
