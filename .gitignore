@@ -17,6 +17,7 @@ __pycache__/
 # 데이터/결과물
 data/
 results/
+models/
 
 # macOS
 .DS_Store

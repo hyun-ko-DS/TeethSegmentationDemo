@@ -50,6 +50,8 @@ export function useSegmentation() {
   const [error, setError] = useState<string | null>(null);
   const [processingTimeMs, setProcessingTimeMs] = useState<number | null>(null);
   const [sampleFilename, setSampleFilename] = useState<string | null>(null);
+  // 진료 기록 저장용 이미지 URL — 업로드 파일은 리사이즈된 blob URL, 샘플은 정적 서버 URL
+  const [recordImageUrl, setRecordImageUrl] = useState<string | null>(null);
 
   // 이미지가 선택됐지만 아직 추론 전인 상태
   const stagedRef = useRef<StagedSource | null>(null);
@@ -96,6 +98,9 @@ export function useSegmentation() {
       const uploadBlob = await resizeForUpload(file, 1024);
       console.log(`[FE] 리사이즈     — ${(file.size / 1024).toFixed(0)} KB → ${(uploadBlob.size / 1024).toFixed(0)} KB  (${(performance.now() - t0).toFixed(0)} ms)`);
 
+      // 진료 기록용: 리사이즈된 blob으로 새 Object URL 생성 (원본 파일 blob URL 대체)
+      const resizedObjectUrl = URL.createObjectURL(uploadBlob);
+
       const formData = new FormData();
       formData.append("image", uploadBlob, file.name);
 
@@ -116,6 +121,7 @@ export function useSegmentation() {
         setPredictions(data.predictions);
         setImageSize({ width: data.image_width, height: data.image_height });
         setProcessingTimeMs(data.processing_time_ms);
+        setRecordImageUrl(resizedObjectUrl);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
         setIsStaged(true); // 실패 시 Analyze 버튼 복원
@@ -143,11 +149,13 @@ export function useSegmentation() {
         const data: PredictResponse = await res.json();
         console.log(`[FE] 서버 응답     — ${((t1 - t0) / 1000).toFixed(2)}s  (${data.predictions.length} predictions)`);
 
+        const staticUrl = `${API_BASE_URL}/static/samples/${split}/${filename}`;
         setPredictions(data.predictions);
         setImageSize({ width: data.image_width, height: data.image_height });
         setProcessingTimeMs(data.processing_time_ms);
         setSampleFilename(split === "valid" ? filename : null);
-        setImageUrl(`${API_BASE_URL}/static/samples/${split}/${filename}`);
+        setImageUrl(staticUrl);
+        setRecordImageUrl(staticUrl);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
         setIsStaged(true); // 실패 시 Analyze 버튼 복원
@@ -189,11 +197,13 @@ export function useSegmentation() {
     setError(null);
     setProcessingTimeMs(null);
     setSampleFilename(null);
+    setRecordImageUrl(null);
   };
 
   return {
     imageUrl,
     imageSize,
+    recordImageUrl,
     predictions,
     filters,
     isLoading,

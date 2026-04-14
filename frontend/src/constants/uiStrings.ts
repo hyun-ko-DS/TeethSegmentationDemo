@@ -38,11 +38,38 @@ export const UI: Record<
     stages: readonly [string, string, string, string];
     done: string;
     running: string;
+    // GNB nav
+    navQuickDiagnosis: string;
+    recordsNav: string;
+    // Records page
+    backToMain: string;
+    recordsEmpty: string;
+    recordsLoadError: string;
+    colNo: string;
+    colPatient: string;
+    colGender: string;
+    colAge: string;
+    colDatetime: string;
+    colSeverity: string;
+    colStatus: string;
+    severityNone: string;
+    severityMild: string;
+    severityModerate: string;
+    severitySevere: string;
+    detailTitle: string;
+    detailDetections: string;
+    savingRecord: string;
+    saveError: string;
     // RecordModal
     recordButton: string;
     recordTitle: string;
     patientName: string;
     patientNamePlaceholder: string;
+    gender: string;
+    genderMale: string;
+    genderFemale: string;
+    age: string;
+    agePlaceholder: string;
     visitDatetime: string;
     register: string;
     recordSuccess: string;
@@ -78,10 +105,35 @@ export const UI: Record<
     stages: ["Reading image", "Preprocessing", "Inference", "Ensemble"],
     done: "Done",
     running: "Running…",
+    navQuickDiagnosis: "Quick Diagnosis",
+    recordsNav: "Records",
+    backToMain: "Back",
+    recordsEmpty: "No records yet.",
+    recordsLoadError: "Failed to load records.",
+    colNo: "#",
+    colPatient: "Patient",
+    colGender: "Gender",
+    colAge: "Age",
+    colDatetime: "Visit Date",
+    colSeverity: "Severity",
+    colStatus: "Status",
+    severityNone: "None",
+    severityMild: "Mild",
+    severityModerate: "Moderate",
+    severitySevere: "Severe",
+    detailTitle: "Record Detail",
+    detailDetections: "Detections",
+    savingRecord: "Saving…",
+    saveError: "Failed to save record.",
     recordButton: "Update Medical Record",
     recordTitle: "Update Medical Record",
     patientName: "Patient Name",
     patientNamePlaceholder: "Enter patient name",
+    gender: "Gender",
+    genderMale: "Male",
+    genderFemale: "Female",
+    age: "Age",
+    agePlaceholder: "Enter age",
     visitDatetime: "Visit Date & Time",
     register: "Register",
     recordSuccess: "Medical record has been updated.",
@@ -114,10 +166,35 @@ export const UI: Record<
     stages: ["이미지 불러오기", "전처리", "추론", "앙상블"],
     done: "완료",
     running: "진행 중…",
+    navQuickDiagnosis: "빠른 진단",
+    recordsNav: "진료 기록",
+    backToMain: "돌아가기",
+    recordsEmpty: "저장된 기록이 없습니다.",
+    recordsLoadError: "기록을 불러오지 못했습니다.",
+    colNo: "#",
+    colPatient: "환자명",
+    colGender: "성별",
+    colAge: "나이",
+    colDatetime: "진료일시",
+    colSeverity: "중증도",
+    colStatus: "진행 상태",
+    severityNone: "없음",
+    severityMild: "경증",
+    severityModerate: "중증",
+    severitySevere: "심각",
+    detailTitle: "진료 기록 상세",
+    detailDetections: "검출 결과",
+    savingRecord: "저장 중…",
+    saveError: "저장에 실패했습니다.",
     recordButton: "진료 기록 업데이트",
     recordTitle: "진료 기록 업데이트",
     patientName: "환자명",
     patientNamePlaceholder: "환자명을 입력하세요",
+    gender: "성별",
+    genderMale: "남",
+    genderFemale: "여",
+    age: "나이",
+    agePlaceholder: "나이를 입력하세요",
     visitDatetime: "진료 일시",
     register: "등록",
     recordSuccess: "진료 기록이 업데이트되었습니다.",

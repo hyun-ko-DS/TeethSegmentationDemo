@@ -13,6 +13,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config import settings
 from app.services.model_manager import ModelManager
 from app.routers import predict
+from app.routers import records as records_router
+from app.db.database import init_db, RECORD_IMAGES_DIR
 
 _REPO_ROOT   = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _VALID_DIR   = os.path.join(_REPO_ROOT, "data", "images", "valid")
@@ -21,6 +23,7 @@ _TEST_DIR    = os.path.join(_REPO_ROOT, "data", "images", "test")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_db()
     await ModelManager.get_instance().initialize()
     yield
 
@@ -45,14 +48,19 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
 
 app.include_router(predict.router)
+app.include_router(records_router.router)
 
 # 샘플 이미지 정적 파일 서빙 (valid / test 분리)
 if os.path.isdir(_VALID_DIR):
     app.mount("/static/samples/valid", StaticFiles(directory=_VALID_DIR), name="samples_valid")
 if os.path.isdir(_TEST_DIR):
     app.mount("/static/samples/test", StaticFiles(directory=_TEST_DIR), name="samples_test")
+
+# 진료 기록 이미지 서빙
+if os.path.isdir(RECORD_IMAGES_DIR):
+    app.mount("/static/record-images", StaticFiles(directory=RECORD_IMAGES_DIR), name="record_images")

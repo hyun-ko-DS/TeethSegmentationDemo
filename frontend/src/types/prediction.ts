@@ -18,6 +18,19 @@ export interface ClassInfo {
   color: [number, number, number]; // [R, G, B] 0~1 float
 }
 
+export interface RecordItem {
+  id: number;
+  patient_name: string;
+  gender: string;
+  age: number;
+  visit_datetime: string;
+  predictions: Prediction[];
+  severity: string;
+  image_url: string;
+  created_at: string;
+  status: string;
+}
+
 export interface FilterState {
   globalThreshold: number;      // 0~1
   classThresholds: number[];    // length 9, 클래스별 threshold
