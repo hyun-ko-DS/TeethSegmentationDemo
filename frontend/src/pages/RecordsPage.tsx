@@ -186,7 +186,7 @@ function DetailModal({ record, onClose, onStatusChange }: { record: RecordItem; 
             <div className="text-muted-foreground">{t.colDatetime}</div>
             <div className="font-medium">{record.visit_datetime}</div>
             <div className="text-muted-foreground">{t.colSeverity}</div>
-            <div><SeverityBadge severity={severityLabel} /></div>
+            <div><SeverityBadge severity={String(severityLabel)} /></div>
             <div className="text-muted-foreground">{t.colStatus}</div>
             <div><StatusDropdown recordId={record.id} current={record.status} onChange={onStatusChange} /></div>
           </div>
@@ -340,7 +340,7 @@ export function RecordsPage() {
                     <td className="px-4 py-2.5">{rec.gender === "M" ? t.genderMale : t.genderFemale}</td>
                     <td className="px-4 py-2.5 tabular-nums">{rec.age}</td>
                     <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{rec.visit_datetime}</td>
-                    <td className="px-4 py-2.5"><SeverityBadge severity={severityLabel(rec.severity)} /></td>
+                    <td className="px-4 py-2.5"><SeverityBadge severity={String(severityLabel(rec.severity))} /></td>
                     <td className="px-4 py-2.5">
                       <StatusDropdown recordId={rec.id} current={rec.status} onChange={handleStatusChange} />
                     </td>

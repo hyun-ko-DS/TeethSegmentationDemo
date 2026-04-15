@@ -4,8 +4,12 @@ import { NUM_CLASSES } from "../constants/classes";
 
 /**
  * 업로드 전 이미지를 maxPx 이내로 리사이즈.
+ * blob: 서버 업로드용, dataUrl: 화면 표시용 (data URL은 revoke 없이 안전)
  */
-async function resizeForUpload(file: File, maxPx = 1024): Promise<Blob> {
+async function resizeForUpload(
+  file: File,
+  maxPx = 1024,
+): Promise<{ blob: Blob; dataUrl: string }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -18,8 +22,9 @@ async function resizeForUpload(file: File, maxPx = 1024): Promise<Blob> {
       canvas.width  = w;
       canvas.height = h;
       canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
       canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
+        (blob) => (blob ? resolve({ blob, dataUrl }) : reject(new Error("toBlob failed"))),
         "image/jpeg",
         0.88,
       );
@@ -95,10 +100,13 @@ export function useSegmentation() {
     if (staged.kind === "file") {
       const { file } = staged;
       const t0 = performance.now();
-      const uploadBlob = await resizeForUpload(file, 1024);
+      const { blob: uploadBlob, dataUrl: resizedDataUrl } = await resizeForUpload(file, 1024);
       console.log(`[FE] 리사이즈     — ${(file.size / 1024).toFixed(0)} KB → ${(uploadBlob.size / 1024).toFixed(0)} KB  (${(performance.now() - t0).toFixed(0)} ms)`);
 
-      // 진료 기록용: 리사이즈된 blob으로 새 Object URL 생성 (원본 파일 blob URL 대체)
+      // data URL을 표시 이미지로 — blob URL과 달리 revoke 없이 항상 유효
+      setImageUrl(resizedDataUrl);
+
+      // 진료 기록 저장용으로는 blob URL 사용 (서버에 저장할 파일 경로가 필요)
       const resizedObjectUrl = URL.createObjectURL(uploadBlob);
 
       const formData = new FormData();
@@ -149,13 +157,14 @@ export function useSegmentation() {
         const data: PredictResponse = await res.json();
         console.log(`[FE] 서버 응답     — ${((t1 - t0) / 1000).toFixed(2)}s  (${data.predictions.length} predictions)`);
 
-        const staticUrl = `${API_BASE_URL}/static/samples/${split}/${filename}`;
+        // thumbnail URL은 staging 때 이미 imageUrl로 설정됨 — analyze 후에도 유지
+        // StaticFiles 마운트는 서버 시작 시 디렉토리 유무에 따라 스킵될 수 있어 사용 불가
+        const thumbnailUrl = `${API_BASE_URL}/thumbnail/${split}/${filename}`;
         setPredictions(data.predictions);
         setImageSize({ width: data.image_width, height: data.image_height });
         setProcessingTimeMs(data.processing_time_ms);
         setSampleFilename(split === "valid" ? filename : null);
-        setImageUrl(staticUrl);
-        setRecordImageUrl(staticUrl);
+        setRecordImageUrl(thumbnailUrl);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
         setIsStaged(true); // 실패 시 Analyze 버튼 복원

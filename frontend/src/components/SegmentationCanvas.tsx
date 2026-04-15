@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClipboardCheck, GitCompareArrows, RotateCcw, ZoomIn } from "lucide-react";
 import type { FilterState, Prediction } from "../types/prediction";
-import { CLASS_COLORS, colorToCss, NUM_CLASSES } from "../constants/classes";
+import { CLASS_COLORS, colorToCss } from "../constants/classes";
 import { useCanvasRenderer } from "../hooks/useCanvasRenderer";
 import { CompareModal } from "./CompareModal";
 import { useLang } from "../contexts/LangContext";
@@ -9,12 +9,6 @@ import { UI } from "../constants/uiStrings";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
-// 비교 뷰에서 사용할 고정 필터 — 기본값과 동일 (non-pathologies 숨김)
-const COMPARE_FILTERS: FilterState = {
-  globalThreshold: 0.01,
-  classThresholds: Array(NUM_CLASSES).fill(0.01).map((v, i) => (i < 3 ? 0.25 : v)),
-  classVisibility: Array(NUM_CLASSES).fill(true).map((_, i) => i >= 3),
-};
 
 interface Props {
   imageUrl: string;

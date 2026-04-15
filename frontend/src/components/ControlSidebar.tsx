@@ -30,7 +30,7 @@ const PATHOLOGIES = [
 
 export function ControlSidebar({
   filters,
-  onGlobalThresholdChange,
+  onGlobalThresholdChange: _onGlobalThresholdChange,
   onClassThresholdChange,
   onClassVisibilityToggle,
   processingTimeMs,
