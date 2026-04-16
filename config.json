@@ -11,7 +11,7 @@
     "canvas_h": 768,
     "wmf_iou_thres": 0.25,
     "wmf_mask_thres": 0.35,
-    "wmf_weights": [0.25, 0.25, 0.25, 0.25],
+    "wmf_weights": [0.334, 0.333, 0.333],
     "wmf_single_model_thres": 0.9,
     "wmf_agreement_boost_thres": 0.5,
 

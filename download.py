@@ -129,6 +129,16 @@ if __name__ == "__main__":
             print(f"❌ 압축 해제 실패 ({zip_rel}): {e}")
             failed.append(zip_rel)
 
+    # 3. .engine / .onnx 삭제 — GPU별 재컴파일 필요하므로 보관 불필요
+    #    (.pt만 유지, start.sh가 .engine 자동 변환)
+    removed = 0
+    for ext in ("*.engine", "*.onnx"):
+        for f in Path("models").rglob(ext):
+            f.unlink()
+            removed += 1
+    if removed:
+        print(f"🗑️  불필요한 파일 삭제: .engine/.onnx {removed}개 (.pt만 유지)")
+
     if failed:
         print(f"\n⚠️  실패 목록 ({len(failed)}개):")
         for f in failed:

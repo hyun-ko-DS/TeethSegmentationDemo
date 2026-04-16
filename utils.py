@@ -24,4 +24,5 @@ def load_config(config_path="config.json"):
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
-set_seed(42)
+if __name__ == "__main__":
+    set_seed(42)

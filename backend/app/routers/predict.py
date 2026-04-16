@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 
 from app.schemas.prediction import (
@@ -23,7 +23,7 @@ router = APIRouter()
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20MB
 
-_REPO_ROOT   = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+_REPO_ROOT   = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _LABELS_DIR  = os.path.join(_REPO_ROOT, "data", "labels", "valid")
 _SAMPLE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -55,6 +55,19 @@ async def list_samples(split: str):
         if os.path.splitext(f)[1].lower() in _SAMPLE_EXTS
     )
     return JSONResponse(content={"filenames": filenames})
+
+
+@router.get("/static/samples/{split}/{filename}")
+async def serve_sample_static(split: str, filename: str):
+    """샘플 이미지 정적 파일 서빙 — StaticFiles 마운트 대체.
+    StaticFiles는 앱 시작 시 디렉토리 유무에 따라 마운트가 스킵될 수 있으므로
+    라우터 엔드포인트로 대체해 항상 동작하도록 한다."""
+    samples_dir = _validate_split(split)
+    _validate_filename(filename)
+    filepath = os.path.join(samples_dir, filename)
+    if not os.path.isfile(filepath):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(filepath)
 
 
 @router.get("/thumbnail/{split}/{filename}")
@@ -93,7 +106,8 @@ async def predict_sample(split: str, filename: str):
     # [1] 서버 직접 파일 읽기 + 디코드 (blocking → thread)
     t0 = time.perf_counter()
     def _read_and_decode():
-        raw = open(filepath, "rb").read()
+        with open(filepath, "rb") as f:
+            raw = f.read()
         img = np.array(Image.open(io.BytesIO(raw)).convert("RGB"))
         return img, len(raw)
     image_rgb, raw_size = await asyncio.to_thread(_read_and_decode)
@@ -153,8 +167,7 @@ async def predict_sample(split: str, filename: str):
 @router.get("/ground-truth/{filename}", response_model=PredictResponse)
 async def ground_truth(filename: str):
     """샘플 이미지의 YOLO 세그멘테이션 라벨(.txt)을 읽어 GT 폴리곤 반환."""
-    import re
-    if not re.match(r'^[\w\-. ]+$', filename):
+    if not _re.match(r'^[\w\-. ]+$', filename):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     basename = os.path.splitext(filename)[0]

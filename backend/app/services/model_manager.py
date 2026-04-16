@@ -6,7 +6,7 @@ import torch
 from ultralytics import YOLO
 
 # backend/ 루트를 sys.path에 추가해서 caf, utils import 가능하도록
-_BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+_BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _BACKEND_ROOT not in sys.path:
     sys.path.insert(0, _BACKEND_ROOT)
 
