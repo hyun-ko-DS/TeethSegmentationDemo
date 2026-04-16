@@ -6,6 +6,7 @@ FROM --platform=linux/amd64 nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
+ENV YOLO_AUTOINSTALL=False
 
 # Python 3.12 설치
 # python3.12-distutils는 Python 3.12에서 제거됨 — pip으로 setuptools가 대체
@@ -27,8 +28,9 @@ RUN pip install --no-cache-dir \
     --extra-index-url https://download.pytorch.org/whl/cu124 \
     torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0
 
-# 2단계: TensorRT (cu12 바이너리만 직접 설치 — 메타패키지 제외하여 cu13 의존성 방지)
+# 2단계: TensorRT (cu12 전용 — 제네릭 tensorrt 메타패키지는 cu13을 끌어오므로 제외)
 RUN pip install --no-cache-dir \
+    tensorrt-cu12==10.16.1.11 \
     tensorrt-cu12-bindings==10.16.1.11 \
     tensorrt-cu12-libs==10.16.1.11
 
