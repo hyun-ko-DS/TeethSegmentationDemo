@@ -282,8 +282,8 @@ export function RecordsPage() {
           {/* GNB 탭 — 중앙 */}
           <nav className="flex items-stretch justify-center gap-2">
             {([
-              { to: "/",        label: t.navQuickDiagnosis },
-              { to: "/records", label: t.recordsNav        },
+              { to: "/diagnosis", label: t.navQuickDiagnosis },
+              { to: "/records",   label: t.recordsNav        },
             ] as const).map(({ to, label }) => {
               const isActive = pathname === to;
               return (

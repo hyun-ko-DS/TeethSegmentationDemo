@@ -50,10 +50,10 @@ export function ImageUpload({ onFileSelect, disabled }: Props) {
       onDragLeave={() => setIsDragging(false)}
       onDrop={onDrop}
     >
-      <Upload className="w-8 h-8 text-muted-foreground" />
+      <Upload className="w-10 h-10 text-muted-foreground" />
       <div className="text-center">
-        <p className="text-sm font-medium text-foreground">{t.dropTitle}</p>
-        <p className="text-xs text-muted-foreground mt-1">{t.dropSubtitle}</p>
+        <p className="text-base font-medium text-foreground">{t.dropTitle}</p>
+        <p className="text-sm text-muted-foreground mt-1">{t.dropSubtitle}</p>
       </div>
       <input
         ref={inputRef}

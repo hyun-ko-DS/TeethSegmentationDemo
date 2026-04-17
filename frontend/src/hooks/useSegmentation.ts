@@ -157,14 +157,14 @@ export function useSegmentation() {
         const data: PredictResponse = await res.json();
         console.log(`[FE] 서버 응답     — ${((t1 - t0) / 1000).toFixed(2)}s  (${data.predictions.length} predictions)`);
 
-        // thumbnail URL은 staging 때 이미 imageUrl로 설정됨 — analyze 후에도 유지
-        // StaticFiles 마운트는 서버 시작 시 디렉토리 유무에 따라 스킵될 수 있어 사용 불가
-        const thumbnailUrl = `${API_BASE_URL}/thumbnail/${split}/${filename}`;
+        // 추론 후 고해상도 원본 이미지로 전환 (라우터 엔드포인트로 서빙)
+        const fullImageUrl = `${API_BASE_URL}/static/samples/${split}/${filename}`;
         setPredictions(data.predictions);
         setImageSize({ width: data.image_width, height: data.image_height });
         setProcessingTimeMs(data.processing_time_ms);
         setSampleFilename(split === "valid" ? filename : null);
-        setRecordImageUrl(thumbnailUrl);
+        setImageUrl(fullImageUrl);
+        setRecordImageUrl(fullImageUrl);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
         setIsStaged(true); // 실패 시 Analyze 버튼 복원

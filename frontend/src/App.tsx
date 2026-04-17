@@ -10,6 +10,7 @@ import { useSegmentation } from "./hooks/useSegmentation";
 import type { Lang } from "./constants/classDescriptions";
 import { LangContext } from "./contexts/LangContext";
 import { UI } from "./constants/uiStrings";
+import { LandingPage } from "./pages/LandingPage";
 import { RecordsPage } from "./pages/RecordsPage";
 
 function MainPage({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
@@ -45,7 +46,8 @@ function MainPage({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void })
 
           {/* 로고 — 좌 */}
           <div className="flex items-center">
-            <button
+            <Link
+              to="/"
               onClick={reset}
               className="flex items-center gap-2 group"
               aria-label="CariesOn — 홈으로"
@@ -60,21 +62,21 @@ function MainPage({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void })
               <h1 className="text-base font-bold tracking-tight text-foreground group-hover:text-foreground/70 transition-colors">
                 CariesOn
               </h1>
-            </button>
+            </Link>
           </div>
 
           {/* GNB 탭 — 중앙 */}
           <nav className="flex items-stretch justify-center gap-2">
             {([
-              { to: "/",        label: t.navQuickDiagnosis },
-              { to: "/records", label: t.recordsNav        },
+              { to: "/diagnosis", label: t.navQuickDiagnosis },
+              { to: "/records",   label: t.recordsNav        },
             ] as const).map(({ to, label }) => {
               const isActive = pathname === to;
               return (
                 <Link
                   key={to}
                   to={to}
-                  onClick={to === "/" ? reset : undefined}
+                  onClick={to === "/diagnosis" ? reset : undefined}
                   className={`flex items-center px-4 text-[15px] font-semibold border-b-[3px] transition-colors ${
                     isActive
                       ? "border-foreground text-foreground"
@@ -115,7 +117,7 @@ function MainPage({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void })
           {!imageUrl ? (
             <div className="flex flex-col gap-3">
               <p className="text-xs text-muted-foreground px-1">{t.chooseOption}</p>
-              <div className="grid grid-cols-2 gap-4" style={{ minHeight: "220px" }}>
+              <div className="grid grid-cols-2 gap-4 aspect-[2/1] w-[94%] mx-auto">
                 <ImageUpload onFileSelect={stageFile} disabled={isLoading} />
                 <SamplePicker onSampleStage={stageSample} disabled={isLoading} />
               </div>
@@ -177,12 +179,13 @@ function MainPage({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void })
 }
 
 function App() {
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>("ko");
 
   return (
     <LangContext.Provider value={lang}>
       <Routes>
-        <Route path="/" element={<MainPage lang={lang} setLang={setLang} />} />
+        <Route path="/" element={<LandingPage lang={lang} setLang={setLang} />} />
+        <Route path="/diagnosis" element={<MainPage lang={lang} setLang={setLang} />} />
         <Route path="/records" element={<RecordsPage />} />
       </Routes>
     </LangContext.Provider>

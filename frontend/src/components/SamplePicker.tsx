@@ -78,10 +78,10 @@ export function SamplePicker({ onSampleStage, disabled }: Props) {
           disabled && "pointer-events-none opacity-50",
         )}
       >
-        <Images className="w-8 h-8 text-muted-foreground" />
+        <Images className="w-10 h-10 text-muted-foreground" />
         <div className="text-center">
-          <p className="text-sm font-medium text-foreground">{t.sampleTitle}</p>
-          <p className="text-xs text-muted-foreground mt-1">{t.sampleCount(totalCount)}</p>
+          <p className="text-base font-medium text-foreground">{t.sampleTitle}</p>
+          <p className="text-sm text-muted-foreground mt-1">{t.sampleCount(totalCount)}</p>
         </div>
       </button>
 
