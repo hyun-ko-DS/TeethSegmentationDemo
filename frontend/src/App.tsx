@@ -117,13 +117,13 @@ function MainPage({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void })
           {!imageUrl ? (
             <div className="flex flex-col gap-3">
               <p className="text-xs text-muted-foreground px-1">{t.chooseOption}</p>
-              <div className="grid grid-cols-2 gap-4 aspect-[2/1] w-[94%] mx-auto">
+              <div className="grid grid-cols-2 gap-4 aspect-[2/1] w-[70%] mx-auto">
                 <ImageUpload onFileSelect={stageFile} disabled={isLoading} />
                 <SamplePicker onSampleStage={stageSample} disabled={isLoading} />
               </div>
             </div>
           ) : (
-            <div className="relative flex-1">
+            <div className="relative flex-1 w-[75%] mx-auto">
               <SegmentationCanvas
                 imageUrl={imageUrl}
                 predictions={predictions}

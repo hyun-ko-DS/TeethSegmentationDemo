@@ -375,7 +375,7 @@ export function SegmentationCanvas({ imageUrl, predictions, filters, sampleFilen
           <>
             <div
               ref={viewportRef}
-              className="overflow-hidden rounded-lg"
+              className="overflow-hidden rounded-lg w-full"
               style={{ cursor: zoomMode ? (isGrabbing ? "grabbing" : "grab") : "default" }}
               onWheel={zoomMode ? handleWheel : undefined}
               onMouseDown={zoomMode ? handleMouseDown : undefined}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { useLang } from "../contexts/LangContext";
@@ -14,6 +14,16 @@ export function LandingPage({ lang, setLang }: Props) {
   const t = UI[useLang()];
   const { pathname } = useLocation();
   const mainRef = useRef<HTMLElement>(null);
+
+  // 데모 이미지 슬라이드
+  const DEMO_IMAGES = ["/demo-preview-1.jpg", "/demo-preview-2.jpg", "/demo-preview-3.jpg", "/demo-preview-4.jpg", "/demo-preview-5.jpg"];
+  const [activeSlide, setActiveSlide] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % DEMO_IMAGES.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
   const isScrolling = useRef(false);
 
   const smoothScrollTo = useCallback((target: number) => {
@@ -182,8 +192,16 @@ export function LandingPage({ lang, setLang }: Props) {
               <div className="w-full max-w-[560px]">
                 {/* 모니터 본체 */}
                 <div className="bg-[#1a1a1a] rounded-xl p-2.5 shadow-2xl">
-                  <div className="bg-muted rounded-lg aspect-[16/10] flex items-center justify-center">
-                    <span className="text-sm text-muted-foreground">Demo Preview</span>
+                  <div className="bg-muted rounded-lg aspect-[16/10] overflow-hidden relative">
+                    {DEMO_IMAGES.map((src, i) => (
+                      <img
+                        key={src}
+                        src={src}
+                        alt={`CariesOn Demo ${i + 1}`}
+                        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+                        style={{ opacity: activeSlide === i ? 1 : 0 }}
+                      />
+                    ))}
                   </div>
                 </div>
                 {/* 모니터 스탠드 */}
