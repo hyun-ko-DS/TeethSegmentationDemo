@@ -96,6 +96,11 @@ export const UI: Record<
     toBe3: string;
     asIs4: string;
     toBe4: string;
+    detectionCount: (n: number) => string;
+    severityGauge: string;
+    healthyStatus: string;
+    requestPrecisionDx: string;
+    precisionDxRequested: string;
   }
 > = {
   en: {
@@ -181,6 +186,11 @@ export const UI: Record<
     toBe3: "Easy UI/UX accessible to non-specialist staff,\nreducing specialist chair time",
     asIs4: "Data silos from manual records\nand fragmented systems",
     toBe4: "Analysis results auto-saved to DB",
+    detectionCount: (n) => `${n}`,
+    severityGauge: "Severity",
+    healthyStatus: "Healthy",
+    requestPrecisionDx: "Request Precision Diagnosis",
+    precisionDxRequested: "Precision diagnosis request registered",
   },
   ko: {
     chooseOption: "분석할 이미지를 선택하세요",
@@ -263,5 +273,10 @@ export const UI: Record<
     toBe3: "비전문 의료인력도 활용 가능한 쉬운 UI/UX로,\n전문의의 진료 시간 단축",
     asIs4: "수기 기록 및 분산된 시스템으로 데이터 단절",
     toBe4: "분석 결과 DB 자동 연계 저장",
+    detectionCount: (n) => `${n}개`,
+    severityGauge: "중증도",
+    healthyStatus: "건강",
+    requestPrecisionDx: "정밀 진단 처리 요청",
+    precisionDxRequested: "정밀 진단 요청이 등록되었습니다",
   },
 };

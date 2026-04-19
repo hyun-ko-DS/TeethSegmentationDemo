@@ -121,11 +121,11 @@ function StatusDropdown({
 
 const SEVERITY_STYLE: Record<string, string> = {
   None:     "bg-gray-100 text-gray-500",
-  Mild:     "bg-yellow-100 text-yellow-700",
+  Mild:     "bg-green-100 text-green-700",
   Moderate: "bg-orange-100 text-orange-700",
   Severe:   "bg-red-100 text-red-600",
   없음: "bg-gray-100 text-gray-500",
-  경증: "bg-yellow-100 text-yellow-700",
+  경증: "bg-green-100 text-green-700",
   중증: "bg-orange-100 text-orange-700",
   심각: "bg-red-100 text-red-600",
 };
@@ -139,10 +139,70 @@ function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
+// ── 중증도 계기판 (반원형) ────────────────────────────────────
+
+function SeverityGauge({ severity, t }: { severity: string; t: typeof UI["en"] }) {
+  // severity → 각도 (0° = 좌, 180° = 우)
+  // None → 건강 텍스트, Mild → 30°, Moderate → 90°, Severe → 150°
+  const angleMap: Record<string, number> = {
+    None: 0, Mild: 30, Moderate: 90, Severe: 150,
+    없음: 0, 경증: 30, 중증: 90, 심각: 150,
+  };
+  const angle = angleMap[severity] ?? 0;
+
+  // 반원 파라미터
+  const cx = 100;
+  const cy = 100;
+  const r = 80;
+
+  const polarToCartesian = (angleDeg: number) => {
+    const rad = (angleDeg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+  };
+
+  // 아크 3단계 경로
+  const arcPath = (fromDeg: number, toDeg: number) => {
+    const start = polarToCartesian(fromDeg);
+    const end = polarToCartesian(toDeg);
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`;
+  };
+
+  // 바늘 끝 좌표 (180 - angle 로 변환: 좌측이 180, 우측이 0)
+  const needleAngle = 180 - angle;
+  const needleEnd = polarToCartesian(needleAngle);
+
+  const isHealthy = severity === "None" || severity === "없음";
+
+  return (
+    <div className="flex flex-col items-center gap-1 py-2">
+      <svg viewBox="0 0 200 120" className="w-48 h-28">
+        {/* 3단계 아크 (왼쪽 초록, 가운데 주황, 오른쪽 빨강) */}
+        <path d={arcPath(180, 120)} fill="none" stroke="#22c55e" strokeWidth="14" strokeLinecap="butt" />
+        <path d={arcPath(120, 60)}  fill="none" stroke="#f59e0b" strokeWidth="14" strokeLinecap="butt" />
+        <path d={arcPath(60, 0)}    fill="none" stroke="#ef4444" strokeWidth="14" strokeLinecap="butt" />
+
+        {/* 바늘 (건강 상태가 아닐 때만) */}
+        {!isHealthy && (
+          <>
+            <line x1={cx} y1={cy} x2={needleEnd.x} y2={needleEnd.y}
+                  stroke="#1f2937" strokeWidth="3" strokeLinecap="round" />
+            <circle cx={cx} cy={cy} r="6" fill="#1f2937" />
+          </>
+        )}
+        {isHealthy && <circle cx={cx} cy={cy} r="6" fill="#22c55e" />}
+      </svg>
+      <span className="text-sm font-semibold text-foreground">
+        {isHealthy ? t.healthyStatus : severity}
+      </span>
+    </div>
+  );
+}
+
 // ── 상세 모달 ─────────────────────────────────────────────────
 
 function DetailModal({ record, onClose, onStatusChange }: { record: RecordItem; onClose: () => void; onStatusChange: (updated: RecordItem) => void }) {
   const t = UI[useLang()];
+  const [requestedPrecisionDx, setRequestedPrecisionDx] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -200,24 +260,67 @@ function DetailModal({ record, onClose, onStatusChange }: { record: RecordItem; 
             />
           </div>
 
-          {/* 검출 결과 목록 */}
-          {record.predictions.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.detailDetections}</p>
-              <div className="flex flex-col gap-1">
-                {record.predictions.map((pred, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-sm">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: colorToCss(CLASS_COLORS[pred.class_id]) }}
-                    />
-                    <span className="flex-1">{pred.class_name}</span>
-                    <span className="text-muted-foreground tabular-nums">{pred.confidence.toFixed(2)}</span>
-                  </div>
-                ))}
+          {/* 중증도 계기판 */}
+          <div className="flex flex-col items-center gap-1 border border-border rounded-lg bg-muted/30">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-3">{t.severityGauge}</p>
+            <SeverityGauge severity={record.severity} t={t} />
+          </div>
+
+          {/* Caries 클래스별 개수 (Class 1~6 만) */}
+          {(() => {
+            const caries = record.predictions.filter((p) => p.class_id >= 3 && p.class_id <= 8);
+            const counts = new Map<number, { name: string; count: number }>();
+            for (const p of caries) {
+              const prev = counts.get(p.class_id);
+              counts.set(p.class_id, { name: p.class_name, count: (prev?.count ?? 0) + 1 });
+            }
+            if (counts.size === 0) return null;
+            const sorted = [...counts.entries()].sort((a, b) => a[0] - b[0]);
+            return (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.detailDetections}</p>
+                <div className="flex flex-col gap-1">
+                  {sorted.map(([classId, { name, count }]) => (
+                    <div key={classId} className="flex items-center gap-2 text-sm">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: colorToCss(CLASS_COLORS[classId]) }}
+                      />
+                      <span className="flex-1">{name}</span>
+                      <span className="font-semibold tabular-nums">{t.detectionCount(count)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
+
+          {/* 정밀 진단 처리 요청 */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (requestedPrecisionDx || record.status === "정밀 진단 권고") return;
+              try {
+                const res = await fetch(`${API_BASE_URL}/records/${record.id}/status`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "정밀 진단 권고" }),
+                });
+                if (!res.ok) return;
+                const updated: RecordItem = await res.json();
+                onStatusChange(updated);
+                setRequestedPrecisionDx(true);
+              } catch { /* ignore */ }
+            }}
+            disabled={requestedPrecisionDx || record.status === "정밀 진단 권고"}
+            className="w-full py-2.5 rounded-lg bg-primary text-white text-sm font-semibold
+                       hover:bg-primary/90 active:bg-primary/80 transition-colors
+                       disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {requestedPrecisionDx || record.status === "정밀 진단 권고"
+              ? t.precisionDxRequested
+              : t.requestPrecisionDx}
+          </button>
         </div>
       </div>
     </div>
